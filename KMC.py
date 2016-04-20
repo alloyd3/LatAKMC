@@ -20,13 +20,13 @@ from LKMC import Graphs
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
 atom_species = 'Ag'         # species to deposit
-numberDepos = 4		        # number of initial depositions
-total_steps = 20           # total number of steps to run
+numberDepos = 2		        # number of initial depositions
+total_steps = 4           # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
 boltzmann = 8.62E-05        # Boltzmann constant (8.62E-05)
-graphRad = 5.4                # graph radius of defect volumes (Angstroms)
+graphRad = 5.9                # graph radius of defect volumes (Angstroms)
 depoRate = 1.2e3            # deposition rate
 
 # for (0001) ZnO only
@@ -47,7 +47,7 @@ class lattice(object):
 
 class params(object):
     def __init__(self):
-        self.graphRadius = 5
+        self.graphRadius = 5.9
 
 # calculate the rate of an event given barrier height (Arrhenius eq.)
 def calc_rate(barrier):
@@ -474,7 +474,7 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
 
 #def move_atom(depo_list, direction_index,full_depo_index):
 
-
+# delete
 # create a roulette table
 def create_roulette(AtomIndex,x_coord,z_coord,second_nb_pos, second_nb_species, full_depo_index):
     # find probability for atom to move in any of 6 directions
@@ -582,7 +582,7 @@ def hashkey(lattice_positions,specie_list,volumeAtoms):
 
     volumeAtoms = np.asarray(volumeAtoms,dtype=np.int32)
     # Globals.PBC = [1,0,1]
-    params.graphRadius = 5
+    params.graphRadius = graphRad
     hashkey = Graphs.getHashKeyForAVolume(params,volumeAtoms,lattice)
     print hashkey
     return hashkey, lattice
