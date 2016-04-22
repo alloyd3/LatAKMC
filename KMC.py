@@ -697,6 +697,7 @@ def findFinal(dir_vector,atom_index,full_depo_index,lattice_positions):
 
         # find atoms in defect volume
         volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
+        
         #new_list = [x+1 for x in volumeAtoms]
 
         # create hashkey
