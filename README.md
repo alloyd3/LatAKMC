@@ -1,11 +1,11 @@
 # PredefinedKMC
-<font color="#0000FF">##Adam's predefined transition KMC code  </font>
+##Adam's predefined transition KMC code
 
 ### Requirements
-Requires LAKMC graphs module
+LAKMC Graphs module
 
 ### About to code
-This script runs KMC on a hexagonal ZnO(0001) surface (to be generalised later) <br>
+This script runs KMC on a hexagonal <b>ZnO(0001)</b> surface (to be generalised later) <br>
 Assumes PBC in <i>x</i> and <i>z</i> directions and deposition in <i>y</i> <br>
 Grid positions start at (0,0,0) <br> 
 
