@@ -20,8 +20,8 @@ from LKMC import Graphs
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
 atom_species = 'Ag'         # species to deposit
-numberDepos = 2		        # number of initial depositions
-total_steps = 4           # total number of steps to run
+numberDepos = 4		        # number of initial depositions
+total_steps = 14           # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -53,6 +53,8 @@ class params(object):
 def calc_rate(barrier):
     rate = prefactor * np.exp(-barrier/(boltzmann*temperature))
     return rate
+
+# find barrier height given rate
 def find_barrier_height(rate):
     barrier = -(boltzmann*temperature)*np.log(rate/prefactor)
     return barrier
@@ -71,6 +73,7 @@ def read_lattice_header(input_lattice_path):
     file.close()
     return atoms,box_x,box_y,box_z
 
+# read in lattice file
 def read_lattice(lattice):
     if (os.path.isfile(lattice)):
         input_file = open(lattice, 'r')
@@ -90,6 +93,7 @@ def read_lattice(lattice):
         print input_lattice_path
         sys.exit()
     input_file.close()
+    
 # function reads of lattice, and finds the maximum y-coordinate
 def find_max_height(input_lattice_path):
     max_height = 0.0
@@ -175,7 +179,7 @@ def find_atom_below(surface_lattice, full_depo_index,x,z):
     return max_height, atom_below
 
 
-# find how many grid points in each ditrection
+# find how many grid points in each direction
 def grid_size(box_x,box_y,box_z):
     #assuming first atom starts at 0,0,0
     x_grid_points = round(box_x/x_grid_dist)
@@ -681,6 +685,28 @@ def SaveVolume(hashkey,volumeAtoms,lattice_positions,specie_list):
         outfile.close()
         return
 
+# find the final hashkey for a given defect and transition
+def findFinal(dir_vector,atom_index,full_depo_index,lattice_positions):
+    depo_list = full_depo_list[atom_index]
+
+    # move atom to final position
+    move_List = move_atom(depo_list, dir_vector ,full_depo_index)
+    if moved_list:
+        full_depo_list[move_atom_index] = moved_list
+        depo_list = full_depo_list[atom_index]
+
+        # find atoms in defect volume
+        volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
+        #new_list = [x+1 for x in volumeAtoms]
+
+        # create hashkey
+        final_key, Lattice1 = hashkey(lattice_positions,specie_list,volumeAtoms)
+
+        return final_key
+    else:
+        sys.exit()
+
+# create the list of possible events
 def create_events_list(full_depo_index,surface_lattice):
     event_list = []
     adatom_positions = []
