@@ -13,6 +13,7 @@ import os
 import shutil
 import random
 import math
+import copy
 from decimal import Decimal
 import numpy as np
 from LKMC import Graphs
@@ -20,8 +21,8 @@ from LKMC import Graphs
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
 atom_species = 'Ag'         # species to deposit
-numberDepos = 4		        # number of initial depositions
-total_steps = 14           # total number of steps to run
+numberDepos = 1		        # number of initial depositions
+total_steps = 2          # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -93,7 +94,7 @@ def read_lattice(lattice):
         print input_lattice_path
         sys.exit()
     input_file.close()
-    
+
 # function reads of lattice, and finds the maximum y-coordinate
 def find_max_height(input_lattice_path):
     max_height = 0.0
@@ -472,7 +473,7 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
     if neighbour_species[0] == 'O_':
     	print "moved on top of surface Oxygen: unstable position"
     	return None
-
+    print "Moved atom"
     moved_list = [atom_species,x,y,z,depo_list[4]]
     return moved_list
 
@@ -585,6 +586,7 @@ def hashkey(lattice_positions,specie_list,volumeAtoms):
     lattice.pos = np.around(lattice.pos,decimals = 5)
 
     volumeAtoms = np.asarray(volumeAtoms,dtype=np.int32)
+
     # Globals.PBC = [1,0,1]
     params.graphRadius = graphRad
     hashkey = Graphs.getHashKeyForAVolume(params,volumeAtoms,lattice)
@@ -686,23 +688,38 @@ def SaveVolume(hashkey,volumeAtoms,lattice_positions,specie_list):
         return
 
 # find the final hashkey for a given defect and transition
-def findFinal(dir_vector,atom_index,full_depo_index,lattice_positions):
-    depo_list = full_depo_list[atom_index]
+def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
+    adatom_positions = []
+    full_depo = copy.deepcopy(full_depo_index)
+    depo_list = full_depo[atom_index]
 
     # move atom to final position
-    move_List = move_atom(depo_list, dir_vector ,full_depo_index)
+    moved_list = move_atom(depo_list, dir_vector ,full_depo)
     if moved_list:
-        full_depo_list[move_atom_index] = moved_list
-        depo_list = full_depo_list[atom_index]
+        full_depo[atom_index] = moved_list
+        depo_list = full_depo[atom_index]
+
+        for i in xrange(len(full_depo_list)):
+            adatom_specie = []
+            adatom_specie.append(full_depo[i][0])
+            adatom_positions.append(full_depo[i][1])
+            adatom_positions.append(full_depo[i][2])
+            adatom_positions.append(full_depo[i][3])
+        lattice_positions = surface_positions + adatom_positions
+        specie_list = surface_specie + adatom_specie
+
 
         # find atoms in defect volume
         volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
-        
+
         #new_list = [x+1 for x in volumeAtoms]
+        #print new_list
 
         # create hashkey
         final_key, Lattice1 = hashkey(lattice_positions,specie_list,volumeAtoms)
 
+        #write_lattice(1000,full_depo_index,surface_lattice,401,0,0)
+        del full_depo
         return final_key
     else:
         sys.exit()
@@ -714,7 +731,7 @@ def create_events_list(full_depo_index,surface_lattice):
     adatom_specie = []
 
     # move to global parameters
-    trans_file = initial_dir + '/Transitions.dat'
+    trans_dir = initial_dir + '/Transitions/'
 
     # add all deposited atoms to list of positions + species
     for i in xrange(len(full_depo_list)):
@@ -727,55 +744,61 @@ def create_events_list(full_depo_index,surface_lattice):
 
     # find transitions for each adatom
     for j in xrange(len(full_depo_list)):
+        final_keys = []
+        directions = []
         depo_list = full_depo_list[j]
 
         # find atoms in volume
         volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
 
         new_list = [x+1 for x in volumeAtoms]
+        #print new_list
 
         # create hashkey for each adatom + store volume
         vol_key, Lattice1 = hashkey(lattice_positions,specie_list,volumeAtoms)
         SaveVolume(vol_key,volumeAtoms,lattice_positions,specie_list)
         trnsfMatrix = TransformMatrix(vol_key,volumeAtoms,Lattice1,lattice_positions)
 
+        trans_file = trans_dir + str(vol_key)+'.txt'
+
         hashkeyExists = None
         if (os.path.isfile(trans_file)):
             input_file = open(trans_file, 'r')
             # skip first line
-            for i in range(0,1):
-                line = input_file.readline()
-            latticeLines = []
             while 1:
                 latline = input_file.readline()
                 barriers = latline.split()
-                if len(barriers) < 5:
+                if len(barriers) > 1:
+                    if len(barriers) == 3:
+                        dis_x = float(barriers[0])*x_grid_dist
+                        dis_y = float(barriers[1])*y_grid_dist
+                        dis_z = float(barriers[2])*z_grid_dist
+                        dir_vector = np.dot(trnsfMatrix,[dis_x,dis_y,dis_z])
+                        dir_vector[0] = int(round(dir_vector[0]/x_grid_dist))
+                        dir_vector[1] = int(round(dir_vector[1]/y_grid_dist))
+                        dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
+                        print dir_vector
+                        final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
+                        final_keys.append(final_key)
+                        directions.append(dir_vector)
+                    if len(barriers) == 2:
+                        for k in xrange(len(final_keys)):
+                            if barriers[0] == final_keys[k]:
+                                rate = calc_rate(float(barriers[1]))
+                                event_list.append([rate,j,directions[j]])
+                                hashkeyExists = 1
+                else:
                     if hashkeyExists == None:
-                        print " Warning: Hashkey does not exist in transitions.dat", vol_key
-                        print " More investigation needed to continue"
-                        print new_list
-                        # TODO: automate NEB runs to find barriers
+                        print "WARNING: Final Hashkey not found, more info needed"
                         sys.exit()
-                    break
-                # if the hashkey exist in trans_file
-                if barriers[0] == vol_key:
-                    hashkeyExists = 1
-                    for k in xrange(3):
-                        if float(barriers[k+1])>0:
-                            rate = calc_rate(float(barriers[k+1]))
-                            dis_x = float(barriers[3*k+4])*x_grid_dist
-                            dis_y = float(barriers[3*k+5])*y_grid_dist
-                            dis_z = float(barriers[3*k+6])*z_grid_dist
-                            dir_vector = np.dot(trnsfMatrix,[dis_x,dis_y,dis_z])
-                            dir_vector[0] = int(round(dir_vector[0]/x_grid_dist))
-                            dir_vector[1] = int(round(dir_vector[1]/y_grid_dist))
-                            dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
-                            event_list.append([rate,j,dir_vector])
+                    else:
+                        break
         else:
             print "Cannot read transitions.dat"
             sys.exit()
         input_file.close()
         del volumeAtoms
+
 
     del lattice_positions
     del adatom_positions
