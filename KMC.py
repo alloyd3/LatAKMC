@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 # This script runs KMC on a hexagonal ZnO(0001) surface
 # TODO: make more general for any hexagonal surface
@@ -16,7 +16,7 @@ import math
 import copy
 from decimal import Decimal
 import numpy as np
-from LKMC import Graphs
+from LKMC import Graphs, NEB, Lattice, Minimise, Input
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
@@ -32,7 +32,7 @@ depoRate = 1.2e3            # deposition rate
 
 # for (0001) ZnO only
 x_grid_dist = 0.9497411251   # distance in x direction between each atom in lattice
-y_grid_dist = 2.1            # distance in y direction between each atom in lattice
+y_grid_dist = 1.55            # distance in y direction between each atom in lattice
 z_grid_dist = 1.6449999809   # distance in z direction between each atom in lattice
 #------------------------------------------------------------------------------
 
@@ -404,6 +404,27 @@ def write_lattice(index,full_depo_index,surface_lattice,natoms,time,barrier):
     outfile.write(line + '\n')
 
     outfile.write(str(box_x)+'  '+str(box_y)+'  '+str(box_z)+'  ' + '\n')
+
+    # write surface lattice first (does not change)
+    for j in xrange(len(surface_lattice)):
+        #outfile.write(str(latticeLines[x]))
+        outfile.write(str(surface_lattice[j][0]) + '   ' + str(surface_lattice[j][1])+ '    '+str(surface_lattice[j][2])+ '   '+ str(surface_lattice[j][3])+'  '+str(surface_lattice[j][4])+'\n')
+
+    # write all deposited atom positions
+    for i in xrange(len(full_depo_index)):
+    	line = full_depo_index[i]
+    	outfile.write(str(atom_species) + '	' + str(line[1]) + '   ' + str(line[2])+ '    '+ str(line[3]) + '   ' +  '0' + '\n')
+    outfile.close
+
+    return
+
+# write temp lattice.dat file
+def write_lattice_LKMC(index,full_depo_index,surface_lattice,natoms):
+    new_lattice = NEB_dir_name_prefac + str(index) + '.dat'
+    outfile = open(new_lattice, 'w')
+    line = str(natoms)
+    outfile.write(line + '\n')
+    outfile.write(str(box_x)+'  '+str(30)+'  '+str(box_z)+'  ' + '\n')
 
     # write surface lattice first (does not change)
     for j in xrange(len(surface_lattice)):
@@ -806,6 +827,40 @@ def create_events_list(full_depo_index,surface_lattice):
     #print event_list
     return event_list
 
+def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
+    # set up temp initial and final lattices.dat
+    params = Input.getLKMCParams(1, "", "lkmcInput.IN")
+    Input.readGlobals("lkmcInput.IN")
+
+    # create initial lattice and Minimise
+    write_lattice_LKMC('/initial',full_depo_index,surface_lattice,natoms)
+    ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
+    minimiser = Minimise.getMinimiser(params)
+    status = minimiser.run(ini)
+
+    #ini.writeLattice("initialMin.dat")
+    full_depo = copy.deepcopy(full_depo_index)
+    depo_list = full_depo[0]
+    dir_vector = [1,0,1]
+    
+    # move atom
+    moved_list = move_atom(depo_list, dir_vector ,full_depo_index)
+    if moved_list:
+        # TODO: loop through all directions
+        full_depo[0] = moved_list
+        
+        # create initial lattice and Minimise
+        write_lattice_LKMC('/'+'0',full_depo,surface_lattice,natoms)
+        fin = Lattice.readLattice(NEB_dir_name_prefac+"/" + '0'+".dat")
+        mini_fin = Minimise.getMinimiser(params)
+        status = mini_fin.run(fin)
+
+        # run NEB on initial and final lattices
+        neb = NEB.NEB(params)
+        status = neb.run(ini, fin)
+        print neb.barrier
+
+
 # ============================================================================
 # ============================================================================
 # ============================================================================
@@ -827,6 +882,7 @@ print "="*80
 initial_dir = os.getcwd()
 output_dir_name_prefac = initial_dir + '/Output'
 Volumes_dir = initial_dir + '/Volumes'
+NEB_dir_name_prefac = initial_dir + '/Temp'
 
 
 print " Current directory           : ", initial_dir
@@ -848,6 +904,8 @@ if not os.path.exists(Volumes_dir):
     os.makedirs(Volumes_dir)
 if not os.path.exists(output_dir_name_prefac):
     os.makedirs(output_dir_name_prefac)
+if not os.path.exists(NEB_dir_name_prefac):
+    os.makedirs(NEB_dir_name_prefac)
 
 print "~"*80
 
@@ -952,7 +1010,7 @@ while CurrentStep < (total_steps + 1):
         write_lattice(latticeNo,full_depo_list,surface_lattice,natoms,Time,Barrier)
     print "-" * 80
 
-
+autoNEB(full_depo_list,surface_lattice,401,5,401)
 
 # for i in xrange(len(full_depo_list)):
 #     depo_list = full_depo_list[i]
