@@ -829,6 +829,7 @@ def create_events_list(full_depo_index,surface_lattice):
     #print event_list
     return event_list
 
+# run NEB to find barriers that are not known
 def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
     barrier = []
     # set up temp initial and final lattices.dat
