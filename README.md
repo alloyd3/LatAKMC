@@ -2,7 +2,9 @@
 ##Adam's predefined transition KMC code
 
 ### Requirements
-LAKMC Graphs module
+LAKMC Graphs, NEB, Lattice, Minimise, Input modules <br>
+lkmcInput.IN    - input file from LAKMC <br>
+md directory    - directory full of information for MD <br>
 
 ### About to code
 This script runs KMC on a hexagonal <b>ZnO(0001)</b> surface (to be generalised later) <br>
