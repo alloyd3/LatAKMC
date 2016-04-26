@@ -16,7 +16,7 @@ import math
 import copy
 from decimal import Decimal
 import numpy as np
-from LKMC import Graphs, NEB, Lattice, Minimise, Input
+from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
@@ -791,6 +791,7 @@ def create_events_list(full_depo_index,surface_lattice):
                 barriers = latline.split()
                 if len(barriers) > 1:
                     if len(barriers) == 3:
+                        # multiply vector by transformation matrix
                         dis_x = float(barriers[0])*x_grid_dist
                         dis_y = float(barriers[1])*y_grid_dist
                         dis_z = float(barriers[2])*z_grid_dist
@@ -802,6 +803,7 @@ def create_events_list(full_depo_index,surface_lattice):
                         final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
                         final_keys.append(final_key)
                         directions.append(dir_vector)
+
                     if len(barriers) == 2:
                         for k in xrange(len(final_keys)):
                             if barriers[0] == final_keys[k]:
@@ -828,39 +830,73 @@ def create_events_list(full_depo_index,surface_lattice):
     return event_list
 
 def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
+    barrier = []
     # set up temp initial and final lattices.dat
     params = Input.getLKMCParams(1, "", "lkmcInput.IN")
     Input.readGlobals("lkmcInput.IN")
 
-    # create initial lattice and Minimise
+    # create initial lattice
     write_lattice_LKMC('/initial',full_depo_index,surface_lattice,natoms)
     ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
+    iniMin = copy.deepcopy(ini)
+
+    # create cell dimensions
+    cellDims = np.asarray([box_x,0,0,0,30,0,0,0,box_z],dtype=np.float64)
+
+    # minimise lattice
     minimiser = Minimise.getMinimiser(params)
-    status = minimiser.run(ini)
+    status = minimiser.run(iniMin)
 
-    #ini.writeLattice("initialMin.dat")
-    full_depo = copy.deepcopy(full_depo_index)
-    depo_list = full_depo[0]
-    dir_vector = [1,0,1]
-    
-    # move atom
-    moved_list = move_atom(depo_list, dir_vector ,full_depo_index)
-    if moved_list:
-        # TODO: loop through all directions
-        full_depo[0] = moved_list
-        
-        # create initial lattice and Minimise
-        write_lattice_LKMC('/'+'0',full_depo,surface_lattice,natoms)
-        fin = Lattice.readLattice(NEB_dir_name_prefac+"/" + '0'+".dat")
-        mini_fin = Minimise.getMinimiser(params)
-        status = mini_fin.run(fin)
+    # check max movement
+    Index, maxMove, avgMove, Sep = Vectors.maxMovement(ini.pos, iniMin.pos, cellDims)
+    print maxMove
+    if maxMove < 0.6:
+        #ini.writeLattice("initialMin.dat")
+        full_depo = copy.deepcopy(full_depo_index)
+        depo_list = full_depo[0]
 
-        # run NEB on initial and final lattices
-        neb = NEB.NEB(params)
-        status = neb.run(ini, fin)
-        print neb.barrier
+        # just look at 6 initial directions
+        dir_vector = []
+        dir_vector.append([2,0,0])
+        dir_vector.append([1,0,-1])
+        dir_vector.append([-1,0,-1])
+        dir_vector.append([1,0,1])
+        dir_vector.append([-1,0,1])
+        dir_vector.append([-2,0,0])
 
+        for i in xrange(len(dir_vector)):
+            # move atom
+            moved_list = move_atom(depo_list, dir_vector[i] ,full_depo_index)
+            if moved_list:
+                full_depo[0] = moved_list
 
+                # create initial lattice and Minimise
+                write_lattice_LKMC('/'+str(i),full_depo,surface_lattice,natoms)
+                fin = Lattice.readLattice(NEB_dir_name_prefac+"/" + str(i) +".dat")
+                finMin = copy.deepcopy(fin)
+
+                # minimise lattice
+                mini_fin = Minimise.getMinimiser(params)
+                status = mini_fin.run(finMin)
+
+                # check max movement
+                Index, maxMove, avgMove, Sep = Vectors.maxMovement(fin.pos, finMin.pos, cellDims)
+                if maxMove < 0.6:
+                    # run NEB on initial and final lattices
+                    neb = NEB.NEB(params)
+                    status = neb.run(iniMin, finMin)
+                    print neb.barrier
+                    barrier.append(neb.barrier)
+                else:
+                    print "WARNING: maxMove too large in final lattice"
+    else:
+        print "WARNING: maxMove too large in initial lattice"
+
+    del ini, iniMin
+    del fin, finMin
+    del Sep
+
+    return
 # ============================================================================
 # ============================================================================
 # ============================================================================
