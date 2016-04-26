@@ -29,6 +29,7 @@ prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12
 boltzmann = 8.62E-05        # Boltzmann constant (8.62E-05)
 graphRad = 5.9                # graph radius of defect volumes (Angstroms)
 depoRate = 1.2e3            # deposition rate
+maxMoveCriteria = 0.6        # maximum distance an atom can move after relaxation (pre NEB)
 
 # for (0001) ZnO only
 x_grid_dist = 0.9497411251   # distance in x direction between each atom in lattice
@@ -817,7 +818,9 @@ def create_events_list(full_depo_index,surface_lattice):
                     else:
                         break
         else:
-            print "Cannot read transitions.dat"
+            print "Cannot find transitions file. Do searches "
+            #autoNEB(full_depo_index,surface_lattice,atom_index,vol_key,natoms)
+
             sys.exit()
         input_file.close()
         del volumeAtoms
@@ -832,6 +835,9 @@ def create_events_list(full_depo_index,surface_lattice):
 # run NEB to find barriers that are not known
 def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
     barrier = []
+    final_keys = []
+    results = []
+
     # set up temp initial and final lattices.dat
     params = Input.getLKMCParams(1, "", "lkmcInput.IN")
     Input.readGlobals("lkmcInput.IN")
@@ -851,10 +857,10 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
     # check max movement
     Index, maxMove, avgMove, Sep = Vectors.maxMovement(ini.pos, iniMin.pos, cellDims)
     print maxMove
-    if maxMove < 0.6:
+    if maxMove < maxMoveCriteria:
         #ini.writeLattice("initialMin.dat")
         full_depo = copy.deepcopy(full_depo_index)
-        depo_list = full_depo[0]
+        depo_list = full_depo[atom_index]
 
         # just look at 6 initial directions
         dir_vector = []
@@ -869,7 +875,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
             # move atom
             moved_list = move_atom(depo_list, dir_vector[i] ,full_depo_index)
             if moved_list:
-                full_depo[0] = moved_list
+                full_depo[atom_index] = moved_list
 
                 # create initial lattice and Minimise
                 write_lattice_LKMC('/'+str(i),full_depo,surface_lattice,natoms)
@@ -882,14 +888,21 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
 
                 # check max movement
                 Index, maxMove, avgMove, Sep = Vectors.maxMovement(fin.pos, finMin.pos, cellDims)
-                if maxMove < 0.6:
+                if maxMove < maxMoveCriteria:
                     # run NEB on initial and final lattices
                     neb = NEB.NEB(params)
                     status = neb.run(iniMin, finMin)
                     print neb.barrier
-                    barrier.append(neb.barrier)
+
+                    # find final hashkey
+                    final_key = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
+                    if final_key not in final_keys:
+                        final_keys.append(final_key)
+                        results.append([dir_vector[i], final_key, neb.barrier])
                 else:
                     print "WARNING: maxMove too large in final lattice"
+
+        print results
     else:
         print "WARNING: maxMove too large in initial lattice"
 
@@ -898,6 +911,28 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
     del Sep
 
     return
+
+# after autoNEB, create new transition file with results
+def create_trans_file(hashkey,results):
+    trans_file = initial_dir + '/Transitions/'+str(hashkey)+'.txt'
+    vectors = []
+    hashBarrier =[]
+
+    if not os.path.exists(trans_file):
+        os.makedirs(trans_file)
+
+    input_file = open(trans_file, 'r')
+    line = input_file.readline()
+    line = line.split()
+    if len(line) > 1:
+        if len(line) == 3:
+            vectors.append([line[0],line[1],line[2]])
+        if len(line) == 2:
+            hashBarrier.append([line[0],line[1]])
+    input_file.close()
+
+    input_file = open(trans_file, 'w')
+
 # ============================================================================
 # ============================================================================
 # ============================================================================
@@ -1047,7 +1082,7 @@ while CurrentStep < (total_steps + 1):
         write_lattice(latticeNo,full_depo_list,surface_lattice,natoms,Time,Barrier)
     print "-" * 80
 
-autoNEB(full_depo_list,surface_lattice,401,5,401)
+autoNEB(full_depo_list,surface_lattice,0,5,401)
 
 # for i in xrange(len(full_depo_list)):
 #     depo_list = full_depo_list[i]
