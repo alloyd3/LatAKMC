@@ -818,8 +818,9 @@ def create_events_list(full_depo_index,surface_lattice):
                     else:
                         break
         else:
-            print "Cannot find transitions file. Do searches "
+            print "WARNING: Cannot find transitions file. Do searches "
             #autoNEB(full_depo_index,surface_lattice,atom_index,vol_key,natoms)
+            #create_events_list(full_depo_index,surface_lattice)
 
             sys.exit()
         input_file.close()
@@ -892,17 +893,23 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                     # run NEB on initial and final lattices
                     neb = NEB.NEB(params)
                     status = neb.run(iniMin, finMin)
+
+                    if status:
+                        print "WARNING: NEB failed to converge"
+                        print "Try changing parameters in lkmcInput.IN"
+                        sys.exit()
+
                     print neb.barrier
+                    neb.barrier = round(neb.barrier,6)
 
                     # find final hashkey
                     final_key = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
-                    if final_key not in final_keys:
-                        final_keys.append(final_key)
-                        results.append([dir_vector[i], final_key, neb.barrier])
+                    results.append([dir_vector[i], final_key, neb.barrier])
                 else:
                     print "WARNING: maxMove too large in final lattice"
 
         print results
+        create_trans_file(hashkey,results)
     else:
         print "WARNING: maxMove too large in initial lattice"
 
@@ -916,22 +923,51 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
 def create_trans_file(hashkey,results):
     trans_file = initial_dir + '/Transitions/'+str(hashkey)+'.txt'
     vectors = []
-    hashBarrier =[]
+    keys =[]
+    barr =[]
 
-    if not os.path.exists(trans_file):
-        os.makedirs(trans_file)
+    if os.path.exists(trans_file):
+        # read in existing transition file
+        input_file = open(trans_file, 'r')
+        line = input_file.readline()
+        line = line.split()
+        if len(line) > 1:
+            if len(line) == 3:
+                vectors.append([line[0],line[1],line[2]])
+            if len(line) == 2:
+                keys.append(line[0])
+                barr.append(line[1])
+        input_file.close()
 
-    input_file = open(trans_file, 'r')
-    line = input_file.readline()
-    line = line.split()
-    if len(line) > 1:
-        if len(line) == 3:
-            vectors.append([line[0],line[1],line[2]])
-        if len(line) == 2:
-            hashBarrier.append([line[0],line[1]])
-    input_file.close()
+    # remove duplicates from list
+    new_keys = []
+    new_barr = []
+    new_keys.append(results[0][1])
+    new_barr.append(results[0][2])
+    for i in xrange(len(results)):
+        if results[i][1] not in new_keys:
+            new_keys.append(results[i][1])
+            new_barr.append(results[i][2])
+    print new_keys
 
-    input_file = open(trans_file, 'w')
+    outfile = open(trans_file, 'w')
+    # write vectors first
+    for i in xrange(len(vectors)):
+        outfile.write(str(vectors[i][0])+'  '+str(vectors[i][1])+'  '+str(vectors[i][2]) + '\n')
+    for i in xrange(len(results)):
+        result = results[i]
+        if result[0] not in vectors:
+            outfile.write(str(result[0][0])+'  '+str(result[0][1])+'  '+str(result[0][2])+'\n')
+
+    # write hashkeys + barriers
+    for i in xrange(len(keys)):
+        outfile.write(str(keys[i]) + '\n')
+    for i in xrange(len(new_keys)):
+        if new_keys[i] not in keys:
+            outfile.write(str(new_keys[i])+'  '+str(new_barr[i])+'\n')
+    outfile.close()
+
+    return
 
 # ============================================================================
 # ============================================================================
