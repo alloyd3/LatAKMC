@@ -20,9 +20,10 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
+jobStatus = 'BEGIN'            # BEGIN or CNTIN (not implemented yet) run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 1		        # number of initial depositions
-total_steps = 2          # total number of steps to run
+numberDepos = 2		        # number of initial depositions
+total_steps = 11          # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -76,10 +77,10 @@ def read_lattice_header(input_lattice_path):
     return atoms,box_x,box_y,box_z
 
 # read in lattice file
-def read_lattice(lattice):
+def read_lattice(lattice,m):
     if (os.path.isfile(lattice)):
         input_file = open(lattice, 'r')
-        for i in range(0,2):
+        for i in range(0,m):
             line = input_file.readline()
         latticeLines = []
         while 1:
@@ -495,7 +496,8 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
     if neighbour_species[0] == 'O_':
     	print "moved on top of surface Oxygen: unstable position"
     	return None
-    print "Moved atom"
+    #print "Moved atom"
+
     moved_list = [atom_species,x,y,z,depo_list[4]]
     return moved_list
 
@@ -591,6 +593,7 @@ def find_volume_atoms(lattice_pos,x,y,z):
 # calculate hashkey for a defect
 def hashkey(lattice_positions,specie_list,volumeAtoms):
     # set up parameters for hashkey calculation
+
     lattice.pos = np.asarray(lattice_positions,dtype=np.float64)
     for i in xrange(len(specie_list)):
         if specie_list[i] == 'O_':
@@ -608,10 +611,11 @@ def hashkey(lattice_positions,specie_list,volumeAtoms):
     lattice.pos = np.around(lattice.pos,decimals = 5)
 
     volumeAtoms = np.asarray(volumeAtoms,dtype=np.int32)
-
     # Globals.PBC = [1,0,1]
     params.graphRadius = graphRad
+
     hashkey = Graphs.getHashKeyForAVolume(params,volumeAtoms,lattice)
+
     print hashkey
     return hashkey, lattice
 
@@ -712,6 +716,7 @@ def SaveVolume(hashkey,volumeAtoms,lattice_positions,specie_list):
 # find the final hashkey for a given defect and transition
 def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
     adatom_positions = []
+    adatom_specie = []
     full_depo = copy.deepcopy(full_depo_index)
     depo_list = full_depo[atom_index]
 
@@ -721,8 +726,7 @@ def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
         full_depo[atom_index] = moved_list
         depo_list = full_depo[atom_index]
 
-        for i in xrange(len(full_depo_list)):
-            adatom_specie = []
+        for i in xrange(len(full_depo)):
             adatom_specie.append(full_depo[i][0])
             adatom_positions.append(full_depo[i][1])
             adatom_positions.append(full_depo[i][2])
@@ -730,15 +734,15 @@ def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
         lattice_positions = surface_positions + adatom_positions
         specie_list = surface_specie + adatom_specie
 
-
         # find atoms in defect volume
         volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
 
         #new_list = [x+1 for x in volumeAtoms]
-        #print new_list
+
 
         # create hashkey
         final_key, Lattice1 = hashkey(lattice_positions,specie_list,volumeAtoms)
+        del Lattice1
 
         #write_lattice(1000,full_depo_index,surface_lattice,401,0,0)
         del full_depo
@@ -780,6 +784,7 @@ def create_events_list(full_depo_index,surface_lattice):
         vol_key, Lattice1 = hashkey(lattice_positions,specie_list,volumeAtoms)
         SaveVolume(vol_key,volumeAtoms,lattice_positions,specie_list)
         trnsfMatrix = TransformMatrix(vol_key,volumeAtoms,Lattice1,lattice_positions)
+        del Lattice1
 
         trans_file = trans_dir + str(vol_key)+'.txt'
 
@@ -819,10 +824,39 @@ def create_events_list(full_depo_index,surface_lattice):
                         break
         else:
             print "WARNING: Cannot find transitions file. Do searches "
-            #autoNEB(full_depo_index,surface_lattice,atom_index,vol_key,natoms)
-            #create_events_list(full_depo_index,surface_lattice)
+            autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms)
+            input_file = open(trans_file, 'r')
+            # skip first line
+            while 1:
+                latline = input_file.readline()
+                barriers = latline.split()
+                if len(barriers) > 1:
+                    if len(barriers) == 3:
+                        # multiply vector by transformation matrix
+                        dis_x = float(barriers[0])*x_grid_dist
+                        dis_y = float(barriers[1])*y_grid_dist
+                        dis_z = float(barriers[2])*z_grid_dist
+                        dir_vector = np.dot(trnsfMatrix,[dis_x,dis_y,dis_z])
+                        dir_vector[0] = int(round(dir_vector[0]/x_grid_dist))
+                        dir_vector[1] = int(round(dir_vector[1]/y_grid_dist))
+                        dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
+                        print dir_vector
+                        final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
+                        final_keys.append(final_key)
+                        directions.append(dir_vector)
 
-            sys.exit()
+                    if len(barriers) == 2:
+                        for k in xrange(len(final_keys)):
+                            if barriers[0] == final_keys[k]:
+                                rate = calc_rate(float(barriers[1]))
+                                event_list.append([rate,j,directions[j]])
+                                hashkeyExists = 1
+                else:
+                    if hashkeyExists == None:
+                        print "WARNING: Final Hashkey not found, more info needed"
+                        sys.exit()
+                    else:
+                        break
         input_file.close()
         del volumeAtoms
 
@@ -843,6 +877,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
     params = Input.getLKMCParams(1, "", "lkmcInput.IN")
     Input.readGlobals("lkmcInput.IN")
 
+    print natoms
     # create initial lattice
     write_lattice_LKMC('/initial',full_depo_index,surface_lattice,natoms)
     ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
@@ -1028,12 +1063,28 @@ initial_surface_height = find_max_height(input_lattice_path)
 print "initial_surface_height: ", initial_surface_height
 
 # store whole surface lattice first
-surface_lattice = read_lattice(input_lattice_path)
+surface_lattice = read_lattice(input_lattice_path,2)
 for i in xrange(len(surface_lattice)):
     surface_specie.append(surface_lattice[i][0])
     surface_positions.append(round(surface_lattice[i][1],7))
     surface_positions.append(round(surface_lattice[i][2],7))
     surface_positions.append(round(surface_lattice[i][3],7))
+
+CurrentStep = 0
+if jobStatus == 'CNTIN':
+    num = 0
+    orig_len = len(surface_lattice)
+    while 1:
+        kmcFile = output_dir_name_prefac + '/KMC' + str(num) + '.dat'
+        if not os.path.exists(kmcFile):
+            full_depo_list = read_lattice(output_dir_name_prefac + '/KMC' + str(num-1) + '.dat',orig_len+4)
+            for i in xrange(len(full_depo_list)):
+                full_depo_list[i][4] = orig_len + 1 + i
+            print full_depo_list
+            natoms += len(full_depo_list)
+            CurrentStep = len(full_depo_list)
+            break
+        num += 1
 
 # find size of grid_size
 x_grid_points, y_grid_points, z_grid_points, box_x, box_z = grid_size(box_x,initial_surface_height,box_z)
@@ -1048,30 +1099,29 @@ print "New lattice size: ",box_x,box_y,box_z, " Angstroms"
 print "-" * 80
 
 # do initial consecutive depos
-index = 1
-New_lattice_path = input_lattice_path
+
+#New_lattice_path = input_lattice_path
 print "Current Step: 0"
-while index < (numberDepos+1):
+while CurrentStep < (numberDepos):
     depo_list = []
     depo_list = deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_list,natoms)
     if depo_list:
         natoms = depo_list[4]
         full_depo_list.append(depo_list)
-        write_lattice(index,full_depo_list,surface_lattice,natoms,0,0)
+        write_lattice(CurrentStep,full_depo_list,surface_lattice,natoms,0,0)
         #write_lattice_post_depo(index, natoms, depo_list[0], depo_list[1], depo_list[2], atom_species, New_lattice_path)
-        index += 1
-New_lattice_path = initial_dir + '/KMC' + str(index-1) + '.dat'
-print "Writing lattice: KMC 0"
-write_lattice(0,full_depo_list,surface_lattice,natoms,0,0)
+        CurrentStep += 1
+#New_lattice_path = initial_dir + '/KMC' + str(index-1) + '.dat'
+#print "Writing lattice: KMC 0"
+#write_lattice(0,full_depo_list,surface_lattice,natoms,0,0)
 print "-" * 80
-
-CurrentStep = index
-
+print full_depo_list
+index = CurrentStep
 
 # do KMC run
 while CurrentStep < (total_steps + 1):
     # TODO: include a verbosity level
-    print "Current Step: ", CurrentStep
+    print "Current Step: ", CurrentStep+1
 
     event_list = create_events_list(full_depo_list,surface_lattice)
     chosenRate, chosenEvent, chosenAtom = choose_event(event_list)
@@ -1088,7 +1138,7 @@ while CurrentStep < (total_steps + 1):
                 #write_lattice_post_depo(index, natoms, depo_list[0], depo_list[1], depo_list[2], atom_species, New_lattice_path)
 
                 index += 1
-        	New_lattice_path = initial_dir + '/KMC' + str(index-1) + '.dat'
+        	#New_lattice_path = initial_dir + '/KMC' + str(index-1) + '.dat'
         	full_depo_list.append(depo_list)
         CurrentStep += 1
 
@@ -1108,7 +1158,7 @@ while CurrentStep < (total_steps + 1):
                 #write_lattice(index,full_depo_list,surface_lattice,natoms,0,0)
                 #write_lattice_post_move(index,natoms,full_depo_list,New_lattice_path)
                 index += 1
-            New_lattice_path = initial_dir + '/KMC' + str(index-1) + '.dat'
+            #New_lattice_path = initial_dir + '/KMC' + str(index-1) + '.dat'
         CurrentStep += 1
     if (CurrentStep-1)%latticeOutEvery == 0:
         latticeNo = CurrentStep/latticeOutEvery
@@ -1118,7 +1168,7 @@ while CurrentStep < (total_steps + 1):
         write_lattice(latticeNo,full_depo_list,surface_lattice,natoms,Time,Barrier)
     print "-" * 80
 
-autoNEB(full_depo_list,surface_lattice,0,5,401)
+#autoNEB(full_depo_list,surface_lattice,0,5,401)
 
 # for i in xrange(len(full_depo_list)):
 #     depo_list = full_depo_list[i]
