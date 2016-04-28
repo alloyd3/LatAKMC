@@ -789,6 +789,7 @@ def create_events_list(full_depo_index,surface_lattice):
         trans_file = trans_dir + str(vol_key)+'.txt'
 
         hashkeyExists = None
+        # read in trans file
         if (os.path.isfile(trans_file)):
             input_file = open(trans_file, 'r')
             # skip first line
@@ -805,25 +806,28 @@ def create_events_list(full_depo_index,surface_lattice):
                         dir_vector[0] = int(round(dir_vector[0]/x_grid_dist))
                         dir_vector[1] = int(round(dir_vector[1]/y_grid_dist))
                         dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
-                        print dir_vector
+                        # find final hashkeys and save
                         final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
                         final_keys.append(final_key)
                         directions.append(dir_vector)
 
                     if len(barriers) == 2:
+                        # compare final hashkey to trans file
                         for k in xrange(len(final_keys)):
                             if barriers[0] == final_keys[k]:
                                 rate = calc_rate(float(barriers[1]))
-                                event_list.append([rate,j,directions[j]])
+                                event_list.append([rate,j,directions[k]])
                                 hashkeyExists = 1
                 else:
                     if hashkeyExists == None:
                         print "WARNING: Final Hashkey not found, more info needed"
+                        # TODO: if final hashkey does not exit, run single NEB
                         sys.exit()
                     else:
                         break
         else:
             print "WARNING: Cannot find transitions file. Do searches "
+            # do searches on volume and save to new trans file
             autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms)
             input_file = open(trans_file, 'r')
             # skip first line
@@ -840,12 +844,13 @@ def create_events_list(full_depo_index,surface_lattice):
                         dir_vector[0] = int(round(dir_vector[0]/x_grid_dist))
                         dir_vector[1] = int(round(dir_vector[1]/y_grid_dist))
                         dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
-                        print dir_vector
+                        # find final hashkeys and save
                         final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
                         final_keys.append(final_key)
                         directions.append(dir_vector)
 
                     if len(barriers) == 2:
+                        # compare final hashkey to trans file
                         for k in xrange(len(final_keys)):
                             if barriers[0] == final_keys[k]:
                                 rate = calc_rate(float(barriers[1]))
@@ -1132,7 +1137,7 @@ while CurrentStep < (total_steps + 1):
             depo_list = []
             depo_list = deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_list,natoms)
             if depo_list:
-                natoms = depo_list[3]
+                natoms = depo_list[4]
                 full_depo_list.append(depo_list)
                 #write_lattice(index,full_depo_list,surface_lattice,natoms,0,0)
                 #write_lattice_post_depo(index, natoms, depo_list[0], depo_list[1], depo_list[2], atom_species, New_lattice_path)
