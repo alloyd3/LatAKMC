@@ -23,7 +23,7 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 jobStatus = 'BEGIN'            # BEGIN or CNTIN (not implemented yet) run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 2		        # number of initial depositions
-total_steps = 11          # total number of steps to run
+total_steps = 3          # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -47,6 +47,8 @@ class lattice(object):
         self.specie = []
         self.cellDims = [box_x,0,0,0,box_y,0,0,0,box_z]
         self.specieList = ['O_','Zn','Ag']
+        self.NAtoms = 0
+        self.charge = 0
 
 class params(object):
     def __init__(self):
@@ -657,6 +659,20 @@ def TransformMatrix(hashkey,volumeAtoms,Lattice1,lattice_positions):
     volumeAtoms = np.asarray(volumeAtoms,dtype=np.int32)
     params.graphRadius = graphRad
 
+
+
+    # -------------------------------------------------------------------------------------------
+    Lattice2.charge = np.asarray([0]*LatLength,dtype=np.float64)
+    Lattice1.charge = np.asarray([0]*LatLength,dtype=np.float64)
+    Lattice2.specieList = np.asarray(['O_','Zn','Ag'],dtype=np.character)
+    Lattice2.NAtoms = LatLength
+    Lattice._writeLattice("Lattice2.dat",Lattice2,append=False, zipfile=False)
+    Lattice._writeLattice("Lattice1.dat",Lattice1,append=False, zipfile=False)
+    # -------------------------------------------------------------------------------------------
+
+
+
+
     # find the transform matrix
     trnsfMatrix, lattice1, atLst1, lattice2, atLst2, cntr1, cntr2 = Graphs.prepareTheMatrix(params,volume2Atoms,Lattice2, True, volumeAtoms, Lattice1, True)
     trnsfMatrix = np.around(trnsfMatrix, decimals=5)
@@ -773,15 +789,17 @@ def create_events_list(full_depo_index,surface_lattice):
         final_keys = []
         directions = []
         depo_list = full_depo_list[j]
+        hashkeyExists = [0]
 
         # find atoms in volume
         volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
 
-        new_list = [x+1 for x in volumeAtoms]
+        #new_list = [x+1 for x in volumeAtoms]
         #print new_list
 
         # create hashkey for each adatom + store volume
         vol_key, Lattice1 = hashkey(lattice_positions,specie_list,volumeAtoms)
+        Lattice1.NAtoms = len(specie_list)
         SaveVolume(vol_key,volumeAtoms,lattice_positions,specie_list)
         trnsfMatrix = TransformMatrix(vol_key,volumeAtoms,Lattice1,lattice_positions)
         del Lattice1
@@ -812,17 +830,21 @@ def create_events_list(full_depo_index,surface_lattice):
                         directions.append(dir_vector)
 
                     if len(barriers) == 2:
+                        hashkeyExists = [0]*len(final_keys)
                         # compare final hashkey to trans file
                         for k in xrange(len(final_keys)):
                             if barriers[0] == final_keys[k]:
                                 rate = calc_rate(float(barriers[1]))
                                 event_list.append([rate,j,directions[k]])
-                                hashkeyExists = 1
+                                hashkeyExists[k] = 1
+
+
                 else:
-                    if hashkeyExists == None:
-                        print "WARNING: Final Hashkey not found, more info needed"
-                        # TODO: if final hashkey does not exit, run single NEB
-                        sys.exit()
+                    for k in xrange(len(final_keys)):
+                        if not hashkeyExists[k]:
+                            result = singleNEB(directions[k],full_depo_index,surface_lattice,j,vol_key,final_keys[k],natoms)
+                            rate = calc_rate(float(result[2]))
+                            event_list.append([rate,j,directions[k]])
                     else:
                         break
         else:
@@ -854,7 +876,7 @@ def create_events_list(full_depo_index,surface_lattice):
                         for k in xrange(len(final_keys)):
                             if barriers[0] == final_keys[k]:
                                 rate = calc_rate(float(barriers[1]))
-                                event_list.append([rate,j,directions[j]])
+                                event_list.append([rate,j,directions[k]])
                                 hashkeyExists = 1
                 else:
                     if hashkeyExists == None:
@@ -882,7 +904,6 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
     params = Input.getLKMCParams(1, "", "lkmcInput.IN")
     Input.readGlobals("lkmcInput.IN")
 
-    print natoms
     # create initial lattice
     write_lattice_LKMC('/initial',full_depo_index,surface_lattice,natoms)
     ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
@@ -939,7 +960,6 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                         print "Try changing parameters in lkmcInput.IN"
                         sys.exit()
 
-                    print neb.barrier
                     neb.barrier = round(neb.barrier,6)
 
                     # find final hashkey
@@ -949,7 +969,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                     print "WARNING: maxMove too large in final lattice"
 
         print results
-        create_trans_file(hashkey,results)
+        write_trans_file(hashkey,results)
     else:
         print "WARNING: maxMove too large in initial lattice"
 
@@ -959,25 +979,112 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
 
     return
 
+# do a single NEB and add transition to trans files
+def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final_key,natoms):
+    print "SINGE NEB", "="*60
+
+    barrier = []
+    final_keys = []
+
+    # set up temp initial and final lattices.dat
+    params = Input.getLKMCParams(1, "", "lkmcInput.IN")
+    Input.readGlobals("lkmcInput.IN")
+
+    print natoms
+    # create initial lattice
+    write_lattice_LKMC('/initial',full_depo_index,surface_lattice,natoms)
+    ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
+    iniMin = copy.deepcopy(ini)
+
+    # create cell dimensions
+    cellDims = np.asarray([box_x,0,0,0,30,0,0,0,box_z],dtype=np.float64)
+
+    # minimise lattice
+    minimiser = Minimise.getMinimiser(params)
+    status = minimiser.run(iniMin)
+
+    # check max movement
+    Index, maxMove, avgMove, Sep = Vectors.maxMovement(ini.pos, iniMin.pos, cellDims)
+    print maxMove
+    if maxMove < maxMoveCriteria:
+        #ini.writeLattice("initialMin.dat")
+        full_depo = copy.deepcopy(full_depo_index)
+        depo_list = full_depo[atom_index]
+
+        # move atom
+        moved_list = move_atom(depo_list, direction ,full_depo_index)
+        if moved_list:
+            full_depo[atom_index] = moved_list
+
+            # create initial lattice and Minimise
+            write_lattice_LKMC('/6',full_depo,surface_lattice,natoms)
+            fin = Lattice.readLattice(NEB_dir_name_prefac+"/" + '6' +".dat")
+            finMin = copy.deepcopy(fin)
+            Index, maxMove, avgMove, Sep = Vectors.maxMovement(iniMin.pos, finMin.pos, cellDims)
+            if maxMove < 0.4:
+                print " difference between ini and fin is too small"
+                sys.exit()
+
+            # minimise lattice
+            mini_fin = Minimise.getMinimiser(params)
+            status = mini_fin.run(finMin)
+
+            # check max movement
+            Index, maxMove, avgMove, Sep = Vectors.maxMovement(fin.pos, finMin.pos, cellDims)
+            if maxMove < maxMoveCriteria:
+                # run NEB on initial and final lattices
+                neb = NEB.NEB(params)
+                status = neb.run(iniMin, finMin)
+
+                if status:
+                    print "WARNING: NEB failed to converge"
+                    print "Try changing parameters in lkmcInput.IN"
+                    sys.exit()
+
+                print neb.barrier
+                neb.barrier = round(neb.barrier,6)
+
+                results = [direction, final_key, neb.barrier]
+                results[0] = map(int,results[0])
+                print direction
+            else:
+                print "WARNING: maxMove too large in final lattice"
+                sys.exit()
+
+        print results
+        add_to_trans_file(hashkey,results)
+    else:
+        print "WARNING: maxMove too large in initial lattice"
+        sys.exit()
+
+    del ini, iniMin
+    del fin, finMin
+    del Sep
+    print "Finished SINGlE NEB", "="*60
+    return results
+
 # after autoNEB, create new transition file with results
-def create_trans_file(hashkey,results):
+def write_trans_file(hashkey,results):
     trans_file = initial_dir + '/Transitions/'+str(hashkey)+'.txt'
     vectors = []
     keys =[]
     barr =[]
 
     if os.path.exists(trans_file):
-        # read in existing transition file
-        input_file = open(trans_file, 'r')
-        line = input_file.readline()
-        line = line.split()
-        if len(line) > 1:
-            if len(line) == 3:
-                vectors.append([line[0],line[1],line[2]])
-            if len(line) == 2:
-                keys.append(line[0])
-                barr.append(line[1])
-        input_file.close()
+        while 1:
+            # read in existing transition file
+            input_file = open(trans_file, 'r')
+            line = input_file.readline()
+            line = line.split()
+            if len(line) > 1:
+                if len(line) == 3:
+                    vectors.append([int(line[0]),int(line[1]),int(line[2])])
+                if len(line) == 2:
+                    keys.append(line[0])
+                    barr.append(float(line[1]))
+            else:
+                break
+            input_file.close()
 
     # remove duplicates from list
     new_keys = []
@@ -1001,13 +1108,55 @@ def create_trans_file(hashkey,results):
 
     # write hashkeys + barriers
     for i in xrange(len(keys)):
-        outfile.write(str(keys[i]) + '\n')
+        outfile.write(str(keys[i])+'    '+str(barr[i])+'\n')
     for i in xrange(len(new_keys)):
         if new_keys[i] not in keys:
             outfile.write(str(new_keys[i])+'  '+str(new_barr[i])+'\n')
     outfile.close()
 
     return
+
+def add_to_trans_file(hashkey,result):
+    trans_file = initial_dir + '/Transitions/'+str(hashkey)+'.txt'
+    vectors = []
+    keys =[]
+    barr =[]
+
+    if os.path.exists(trans_file):
+        input_file = open(trans_file, 'r')
+        while 1:
+            # read in existing transition file
+            line = input_file.readline()
+            line = line.split()
+            if len(line) > 1:
+                if len(line) == 3:
+                    vectors.append([int(line[0]),int(line[1]),int(line[2])])
+                if len(line) == 2:
+                    keys.append(line[0])
+                    print keys
+                    barr.append(float(line[1]))
+            else:
+                break
+        input_file.close()
+
+    outfile = open(trans_file, 'w')
+    # write vectors first
+    for i in xrange(len(vectors)):
+        outfile.write(str(vectors[i][0])+'  '+str(vectors[i][1])+'  '+str(vectors[i][2]) + '\n')
+    if result[0] not in vectors:
+        outfile.write(str(result[0][0])+'  '+str(result[0][1])+'  '+str(result[0][2])+'\n')
+
+    # write hashkeys + barriers
+    for i in xrange(len(keys)):
+        outfile.write(str(keys[i]) +'   '+str(barr[i])+'\n')
+    if result[1] not in keys:
+            outfile.write(str(result[1])+'  '+str(result[2])+'\n')
+    print "Current vol", hashkey
+    print result[1], keys
+    outfile.close()
+
+    return
+
 
 # ============================================================================
 # ============================================================================
@@ -1114,10 +1263,10 @@ while CurrentStep < (numberDepos):
         natoms = depo_list[4]
         full_depo_list.append(depo_list)
         write_lattice(CurrentStep,full_depo_list,surface_lattice,natoms,0,0)
+        print "Writing lattice: KMC 0"
         #write_lattice_post_depo(index, natoms, depo_list[0], depo_list[1], depo_list[2], atom_species, New_lattice_path)
         CurrentStep += 1
 #New_lattice_path = initial_dir + '/KMC' + str(index-1) + '.dat'
-#print "Writing lattice: KMC 0"
 #write_lattice(0,full_depo_list,surface_lattice,natoms,0,0)
 print "-" * 80
 print full_depo_list
