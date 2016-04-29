@@ -454,50 +454,15 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
     z = round(PBC_pos(z+dir_vector[2]*z_grid_dist,box_z),7)
 
 
-    # if direction_index == 0:
-    # 	print "Attempting to move north"
-    # 	x = PBC_pos(x + 2 * x_grid_dist,box_x)
-    # elif direction_index == 1:
-    # 	print "Attempting to move northwest"
-    # 	x = PBC_pos(x + 1 * x_grid_dist,box_x)
-    # 	z = PBC_pos(z - 1 * z_grid_dist,box_z)
-    # elif direction_index == 2:
-    # 	print "Attempting to move southwest"
-    # 	x = PBC_pos(x - 1 * x_grid_dist,box_x)
-    # 	z = PBC_pos(z - 1 * z_grid_dist,box_z)
-    # elif direction_index == 5:
-    # 	print "Attempting to move south"
-    # 	x = PBC_pos(x - 2 * x_grid_dist,box_x)
-    # elif direction_index == 4:
-    # 	print "Attempting to move southeast"
-    # 	x = PBC_pos(x - 1 * x_grid_dist,box_x)
-    # 	z = PBC_pos(z + 1 * z_grid_dist,box_z)
-    # elif direction_index == 3:
-    # 	print "Attempting to move northeast"
-    # 	x = PBC_pos(x + 1 * x_grid_dist,box_x)
-    # 	z = PBC_pos(z + 1 * z_grid_dist,box_z)
-    # else:
-    # 	print "Error: staying still"
-
     y2, neighbour_species, neighbour_heights = deposition_y(full_depo_index,x,z)
     #print neighbour_species
 
-    # if neighbour_species[6-dir_] == 'Ag':
-    # 	neighbour_species[6-direction_index] = None
-    # else:
-    # 	print "Error, something wrong with move"
-    # 	return None
-    #
-    # # TODO: check if Ag is in same layer
-    # for i in neighbour_species:
-    # 	if i == 'Ag':
-    # 		print "moved near Ag, redo move"
-    # 		return None
 
-    # TODO: check if O_ is in same layer
+    # check if Ag moved to unstable sites
     if neighbour_species[0] == 'O_':
-    	print "moved on top of surface Oxygen: unstable position"
-    	return None
+        if round((y-initial_surface_height)/y_grid_dist) = 0:
+    	    print "moved on top of surface Oxygen: unstable position"
+    	    return None
     #print "Moved atom"
 
     moved_list = [atom_species,x,y,z,depo_list[4]]
