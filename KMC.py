@@ -34,6 +34,7 @@ maxMoveCriteria = 0.6        # maximum distance an atom can move after relaxatio
 
 # for (0001) ZnO only
 x_grid_dist = 0.9497411251   # distance in x direction between each atom in lattice
+# TODO: second layer increase to 2.1
 y_grid_dist = 1.55            # distance in y direction between each atom in lattice
 z_grid_dist = 1.6449999809   # distance in z direction between each atom in lattice
 #------------------------------------------------------------------------------
@@ -459,8 +460,9 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
 
 
     # check if Ag moved to unstable sites
+    # TODO: check if on top of another Ag
     if neighbour_species[0] == 'O_':
-        if round((y-initial_surface_height)/y_grid_dist) = 0:
+        if round((y-initial_surface_height)/y_grid_dist) == 0:
     	    print "moved on top of surface Oxygen: unstable position"
     	    return None
     #print "Moved atom"
@@ -805,6 +807,7 @@ def create_events_list(full_depo_index,surface_lattice):
 
 
                 else:
+                    #TODO: does not seem to be working correctly!
                     for k in xrange(len(final_keys)):
                         if not hashkeyExists[k]:
                             result = singleNEB(directions[k],full_depo_index,surface_lattice,j,vol_key,final_keys[k],natoms)
@@ -865,9 +868,6 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
     final_keys = []
     results = []
 
-    # set up temp initial and final lattices.dat
-    params = Input.getLKMCParams(1, "", "lkmcInput.IN")
-    Input.readGlobals("lkmcInput.IN")
 
     # create initial lattice
     write_lattice_LKMC('/initial',full_depo_index,surface_lattice,natoms)
@@ -931,7 +931,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                     final_key = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
                     results.append([dir_vector[i], final_key, neb.barrier])
                 else:
-                    print "WARNING: maxMove too large in final lattice"
+                    print "WARNING: maxMove too large in final lattice:", maxMove
 
         print results
         write_trans_file(hashkey,results)
@@ -1188,6 +1188,10 @@ for i in xrange(len(surface_lattice)):
     surface_positions.append(round(surface_lattice[i][1],7))
     surface_positions.append(round(surface_lattice[i][2],7))
     surface_positions.append(round(surface_lattice[i][3],7))
+
+# set up temp initial and final lattices.dat
+params = Input.getLKMCParams(1, "", "lkmcInput.IN")
+Input.readGlobals("lkmcInput.IN")
 
 CurrentStep = 0
 if jobStatus == 'CNTIN':
