@@ -20,10 +20,10 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
-jobStatus = 'BEGIN'            # BEGIN or CNTIN (not implemented yet) run
+jobStatus = 'CNTIN'            # BEGIN or CNTIN (not implemented yet) run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 5		        # number of initial depositions
-total_steps = 100          # total number of steps to run
+total_steps = 110         # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -1212,7 +1212,7 @@ if jobStatus == 'CNTIN':
                 full_depo_list[i][4] = orig_len + 1 + i
             print full_depo_list
             natoms += len(full_depo_list)
-            CurrentStep = len(full_depo_list)
+            CurrentStep = num
             break
         num += 1
 
@@ -1269,7 +1269,7 @@ while CurrentStep < (total_steps + 1):
 
                 index += 1
         	#New_lattice_path = initial_dir + '/KMC' + str(index-1) + '.dat'
-        	full_depo_list.append(depo_list)
+        	#full_depo_list.append(depo_list)
         CurrentStep += 1
 
     # do move
@@ -1316,4 +1316,3 @@ print "="*80
 
 del full_depo_list
 del surface_lattice
-#print full_depo_list[0][0]
