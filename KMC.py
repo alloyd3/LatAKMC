@@ -462,9 +462,8 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
     # check if Ag moved to unstable sites
     # TODO: check if on top of another Ag
     if neighbour_species[0] == 'O_':
-        if round((y-initial_surface_height)/y_grid_dist) == 0:
-    	    print "moved on top of surface Oxygen: unstable position"
-    	    return None
+    	print "moved on top of surface Oxygen: unstable position"
+    	return None
     #print "Moved atom"
 
     moved_list = [atom_species,x,y,z,depo_list[4]]
@@ -585,7 +584,6 @@ def hashkey(lattice_positions,specie_list,volumeAtoms):
 
     hashkey = Graphs.getHashKeyForAVolume(params,volumeAtoms,lattice)
 
-    print hashkey
     return hashkey, lattice
 
 # find the transform matrix between 2 defect volumes
@@ -621,8 +619,8 @@ def TransformMatrix(hashkey,volumeAtoms,Lattice1,lattice_positions):
     else:
         sys.exit()
 
-    Lattice1.cellDims = np.asarray([box_x,0,0,0,box_y,0,0,0,box_z],dtype=np.float64)
-    Lattice2.cellDims = np.asarray([box_x,0,0,0,box_y,0,0,0,box_z],dtype=np.float64)
+    Lattice1.cellDims = np.asarray([box_x,0,0,0,30,0,0,0,box_z],dtype=np.float64)
+    Lattice2.cellDims = np.asarray([box_x,0,0,0,30,0,0,0,box_z],dtype=np.float64)
     volumeAtoms = np.asarray(volumeAtoms,dtype=np.int32)
     params.graphRadius = graphRad
 
@@ -639,7 +637,7 @@ def TransformMatrix(hashkey,volumeAtoms,Lattice1,lattice_positions):
 
 
 
-
+    print "HASHKEY:" , hashkey
     # find the transform matrix
     trnsfMatrix, lattice1, atLst1, lattice2, atLst2, cntr1, cntr2 = Graphs.prepareTheMatrix(params,volume2Atoms,Lattice2, True, volumeAtoms, Lattice1, True)
 
