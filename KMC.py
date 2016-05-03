@@ -22,8 +22,8 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 #- User inputs hard coded in script
 jobStatus = 'BEGIN'            # BEGIN or CNTIN (not implemented yet) run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 2		        # number of initial depositions
-total_steps = 3          # total number of steps to run
+numberDepos = 5		        # number of initial depositions
+total_steps = 100          # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -31,6 +31,7 @@ boltzmann = 8.62E-05        # Boltzmann constant (8.62E-05)
 graphRad = 5.9                # graph radius of defect volumes (Angstroms)
 depoRate = 1.2e3            # deposition rate
 maxMoveCriteria = 0.6        # maximum distance an atom can move after relaxation (pre NEB)
+MaxHeight = 30              # Dimension of cell in y direction
 
 # for (0001) ZnO only
 x_grid_dist = 0.9497411251   # distance in x direction between each atom in lattice
@@ -446,6 +447,7 @@ def write_lattice_LKMC(index,full_depo_index,surface_lattice,natoms):
 
 # move event
 def move_atom(depo_list, dir_vector ,full_depo_index):
+    moved_list = None
     x = depo_list[1]
     y = depo_list[2]
     z = depo_list[3]
@@ -467,9 +469,9 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
     #print "Moved atom"
 
     moved_list = [atom_species,x,y,z,depo_list[4]]
+    print "Moved atom: ", moved_list
     return moved_list
 
-#def move_atom(depo_list, direction_index,full_depo_index):
 
 # delete
 # create a roulette table
@@ -574,7 +576,7 @@ def hashkey(lattice_positions,specie_list,volumeAtoms):
         #     specie_list[i] = 3
 
     lattice.specie = np.asarray(specie_list,np.int32)
-    lattice.cellDims = np.asarray([box_x,0,0,0,box_y,0,0,0,box_z],dtype=np.float64)
+    lattice.cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
     lattice.specieList = np.asarray(['O_','Zn','Ag'],dtype=np.character)
     lattice.pos = np.around(lattice.pos,decimals = 5)
 
@@ -619,25 +621,24 @@ def TransformMatrix(hashkey,volumeAtoms,Lattice1,lattice_positions):
     else:
         sys.exit()
 
-    Lattice1.cellDims = np.asarray([box_x,0,0,0,30,0,0,0,box_z],dtype=np.float64)
-    Lattice2.cellDims = np.asarray([box_x,0,0,0,30,0,0,0,box_z],dtype=np.float64)
+    Lattice1.cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
+    Lattice2.cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
     volumeAtoms = np.asarray(volumeAtoms,dtype=np.int32)
     params.graphRadius = graphRad
 
 
 
     # -------------------------------------------------------------------------------------------
-    Lattice2.charge = np.asarray([0]*LatLength,dtype=np.float64)
-    Lattice1.charge = np.asarray([0]*LatLength,dtype=np.float64)
-    Lattice2.specieList = np.asarray(['O_','Zn','Ag'],dtype=np.character)
-    Lattice2.NAtoms = LatLength
-    Lattice._writeLattice("Lattice2.dat",Lattice2,append=False, zipfile=False)
-    Lattice._writeLattice("Lattice1.dat",Lattice1,append=False, zipfile=False)
+    # Lattice2.charge = np.asarray([0]*LatLength,dtype=np.float64)
+    # Lattice1.charge = np.asarray([0]*LatLength,dtype=np.float64)
+    # Lattice2.specieList = np.asarray(['O_','Zn','Ag'],dtype=np.character)
+    # Lattice2.NAtoms = LatLength
+    # Lattice._writeLattice("Lattice2.dat",Lattice2,append=False, zipfile=False)
+    # Lattice._writeLattice("Lattice1.dat",Lattice1,append=False, zipfile=False)
     # -------------------------------------------------------------------------------------------
 
 
 
-    print "HASHKEY:" , hashkey
     # find the transform matrix
     trnsfMatrix, lattice1, atLst1, lattice2, atLst2, cntr1, cntr2 = Graphs.prepareTheMatrix(params,volume2Atoms,Lattice2, True, volumeAtoms, Lattice1, True)
 
@@ -810,8 +811,9 @@ def create_events_list(full_depo_index,surface_lattice):
                     for k in xrange(len(final_keys)):
                         if not hashkeyExists[k]:
                             result = singleNEB(directions[k],full_depo_index,surface_lattice,j,vol_key,final_keys[k],natoms)
-                            rate = calc_rate(float(result[2]))
-                            event_list.append([rate,j,directions[k]])
+                            if result:
+                                rate = calc_rate(float(result[2]))
+                                event_list.append([rate,j,directions[k]])
                     else:
                         break
         else:
@@ -874,7 +876,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
     iniMin = copy.deepcopy(ini)
 
     # create cell dimensions
-    cellDims = np.asarray([box_x,0,0,0,30,0,0,0,box_z],dtype=np.float64)
+    cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
 
     # minimise lattice
     minimiser = Minimise.getMinimiser(params)
@@ -912,6 +914,12 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                 mini_fin = Minimise.getMinimiser(params)
                 status = mini_fin.run(finMin)
 
+                # check that initial and final are different
+                Index, maxMove, avgMove, Sep = Vectors.maxMovement(iniMin.pos, finMin.pos, cellDims)
+                if maxMove < 0.4:
+                    print " difference between ini and fin is too small"
+                    sys.exit()
+
                 # check max movement
                 Index, maxMove, avgMove, Sep = Vectors.maxMovement(fin.pos, finMin.pos, cellDims)
                 if maxMove < maxMoveCriteria:
@@ -932,8 +940,8 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                 else:
                     print "WARNING: maxMove too large in final lattice:", maxMove
 
-        print results
-        write_trans_file(hashkey,results)
+        if results:
+            write_trans_file(hashkey,results)
     else:
         print "WARNING: maxMove too large in initial lattice"
 
@@ -949,6 +957,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
 
     barrier = []
     final_keys = []
+    results = None
 
     # set up temp initial and final lattices.dat
     params = Input.getLKMCParams(1, "", "lkmcInput.IN")
@@ -961,7 +970,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
     iniMin = copy.deepcopy(ini)
 
     # create cell dimensions
-    cellDims = np.asarray([box_x,0,0,0,30,0,0,0,box_z],dtype=np.float64)
+    cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
 
     # minimise lattice
     minimiser = Minimise.getMinimiser(params)
@@ -1013,10 +1022,9 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 print direction
             else:
                 print "WARNING: maxMove too large in final lattice"
-                sys.exit()
 
-        print results
-        add_to_trans_file(hashkey,results)
+        if results:
+            add_to_trans_file(hashkey,results)
     else:
         print "WARNING: maxMove too large in initial lattice"
         sys.exit()
@@ -1243,7 +1251,7 @@ index = CurrentStep
 # do KMC run
 while CurrentStep < (total_steps + 1):
     # TODO: include a verbosity level
-    print "Current Step: ", CurrentStep+1
+    print "Current Step: ", CurrentStep
 
     event_list = create_events_list(full_depo_list,surface_lattice)
     chosenRate, chosenEvent, chosenAtom = choose_event(event_list)
@@ -1283,7 +1291,7 @@ while CurrentStep < (total_steps + 1):
             #New_lattice_path = initial_dir + '/KMC' + str(index-1) + '.dat'
         CurrentStep += 1
     if (CurrentStep-1)%latticeOutEvery == 0:
-        latticeNo = CurrentStep/latticeOutEvery
+        latticeNo = (CurrentStep-1)/latticeOutEvery
         print "Writing lattice: KMC", latticeNo
         Time = Time + (1/chosenRate)*1E15
         Barrier = find_barrier_height(chosenRate)
