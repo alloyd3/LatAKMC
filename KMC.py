@@ -642,10 +642,12 @@ def TransformMatrix(hashkey,volumeAtoms,Lattice1,lattice_positions):
 
     # find the transform matrix
     trnsfMatrix, lattice1, atLst1, lattice2, atLst2, cntr1, cntr2 = Graphs.prepareTheMatrix(params,volume2Atoms,Lattice2, True, volumeAtoms, Lattice1, True)
+
     trnsfMatrix = np.around(trnsfMatrix, decimals=5)
 
     #print trnsfMatrix
     del Lattice2
+    del lattice2,lattice1,atLst1,atLst2,cntr1,cntr2
 
     # multiply transform matrix by north direction vector
     result = np.dot(trnsfMatrix,[2*x_grid_dist,0,0])
@@ -756,7 +758,7 @@ def create_events_list(full_depo_index,surface_lattice):
         final_keys = []
         directions = []
         depo_list = full_depo_list[j]
-        hashkeyExists = [0]
+        hashkeyExists = []
 
         # find atoms in volume
         volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
@@ -773,7 +775,6 @@ def create_events_list(full_depo_index,surface_lattice):
 
         trans_file = trans_dir + str(vol_key)+'.txt'
 
-        hashkeyExists = None
         # read in trans file
         if (os.path.isfile(trans_file)):
             input_file = open(trans_file, 'r')
@@ -795,9 +796,9 @@ def create_events_list(full_depo_index,surface_lattice):
                         final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
                         final_keys.append(final_key)
                         directions.append(dir_vector)
+                        hashkeyExists.append(0)
 
                     if len(barriers) == 2:
-                        hashkeyExists = [0]*len(final_keys)
                         # compare final hashkey to trans file
                         for k in xrange(len(final_keys)):
                             if barriers[0] == final_keys[k]:
