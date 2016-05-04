@@ -2,7 +2,7 @@
 ##Adam's predefined transition KMC code
 
 ### Requirements
-LAKMC Graphs, NEB, Lattice, Minimise, Input modules <br>
+LAKMC Graphs, NEB, Lattice, Minimise, Input, Vectors modules <br>
 lkmcInput.IN    - input file from LAKMC <br>
 md directory    - directory full of information for MD <br>
 
@@ -29,7 +29,8 @@ List of Atom indices in hashkey<br>
 #### Transitions
 Each Transition file is named by the initial volume hashkey. <br>
 Format:<br>
-Final Hashkey, Barrier height (eV), Displacement vector in integer lattice units (x y z)<br>
+Displacement vectors in integer lattice units (x y z) <br>
+List of final Hashkeys and Barrier heights (eV)
 
 #### Output
 Each ouput file is called KMC + KMC step.<br>
