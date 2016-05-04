@@ -23,7 +23,7 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 jobStatus = 'CNTIN'            # BEGIN or CNTIN (not implemented yet) run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 5		        # number of initial depositions
-total_steps = 110         # total number of steps to run
+total_steps = 400         # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -819,7 +819,9 @@ def create_events_list(full_depo_index,surface_lattice):
         else:
             print "WARNING: Cannot find transitions file. Do searches "
             # do searches on volume and save to new trans file
-            autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms)
+            status = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms)
+            if status:
+                break
             input_file = open(trans_file, 'r')
             # skip first line
             while 1:
@@ -918,7 +920,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                 Index, maxMove, avgMove, Sep = Vectors.maxMovement(iniMin.pos, finMin.pos, cellDims)
                 if maxMove < 0.4:
                     print " difference between ini and fin is too small"
-                    sys.exit()
+                    break
 
                 # check max movement
                 Index, maxMove, avgMove, Sep = Vectors.maxMovement(fin.pos, finMin.pos, cellDims)
@@ -942,6 +944,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
 
         if results:
             write_trans_file(hashkey,results)
+            return 0;
     else:
         print "WARNING: maxMove too large in initial lattice"
 
@@ -949,7 +952,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
     del fin, finMin
     del Sep
 
-    return
+    return 1;
 
 # do a single NEB and add transition to trans files
 def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final_key,natoms):
@@ -996,7 +999,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
             Index, maxMove, avgMove, Sep = Vectors.maxMovement(iniMin.pos, finMin.pos, cellDims)
             if maxMove < 0.4:
                 print " difference between ini and fin is too small"
-                sys.exit()
+                return []
 
             # minimise lattice
             mini_fin = Minimise.getMinimiser(params)
