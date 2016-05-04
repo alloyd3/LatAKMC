@@ -20,10 +20,10 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
-jobStatus = 'CNTIN'            # BEGIN or CNTIN (not implemented yet) run
+jobStatus = 'BEGIN'            # BEGIN or CNTIN (not implemented yet) run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 5		        # number of initial depositions
-total_steps = 400         # total number of steps to run
+numberDepos = 2		        # number of initial depositions
+total_steps = 5        # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -799,25 +799,35 @@ def create_events_list(full_depo_index,surface_lattice):
 
                     if len(barriers) == 2:
                         # compare final hashkey to trans file
-                        for k in xrange(len(final_keys)):
-                            if barriers[0] == final_keys[k]:
-                                rate = calc_rate(float(barriers[1]))
-                                event_list.append([rate,j,directions[k]])
-                                hashkeyExists[k] = 1
+                        events = 0
+                        events, hashkeyExists = add_to_events(final_keys,barriers[0],barriers[1],j,directions,hashkeyExists)
+                        if events:
+                            event_list = event_list + events
+                        # for k in xrange(len(final_keys)):
+                        #     if barriers[0] == final_keys[k]:
+                        #         if barriers[1] == "None":
+                        #             sys.exit()
+                        #             break
+                        #         rate = calc_rate(float(barriers[1]))
+                        #         event_list.append([rate,j,directions[k]])
+                        #         hashkeyExists[k] = 1
 
 
                 else:
                     #TODO: does not seem to be working correctly!
                     for k in xrange(len(final_keys)):
+                        print "DEBUG"
+                        print hashkeyExists[k], final_keys[k], vol_key
                         if not hashkeyExists[k]:
                             result = singleNEB(directions[k],full_depo_index,surface_lattice,j,vol_key,final_keys[k],natoms)
                             if result:
-                                rate = calc_rate(float(result[2]))
-                                event_list.append([rate,j,directions[k]])
+                                if result[2] != "None":
+                                    rate = calc_rate(float(result[2]))
+                                    event_list.append([rate,j,directions[k]])
                     else:
                         break
         else:
-            print "WARNING: Cannot find transitions file. Do searches "
+            print "WARNING: Cannot find transitions file. Do searches ", vol_key
             # do searches on volume and save to new trans file
             status = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms)
             if status:
@@ -841,14 +851,22 @@ def create_events_list(full_depo_index,surface_lattice):
                         final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
                         final_keys.append(final_key)
                         directions.append(dir_vector)
+                        hashkeyExists.append(0)
 
                     if len(barriers) == 2:
+
                         # compare final hashkey to trans file
-                        for k in xrange(len(final_keys)):
-                            if barriers[0] == final_keys[k]:
-                                rate = calc_rate(float(barriers[1]))
-                                event_list.append([rate,j,directions[k]])
-                                hashkeyExists = 1
+                        events, hashkeyExists = add_to_events(final_keys,barriers[0],barriers[1],j,directions, hashkeyExists)
+                        if events:
+                            event_list = event_list + events
+                        # for k in xrange(len(final_keys)):
+                        #     if barriers[0] == final_keys[k]:
+                        #         if barriers[1] == "None":
+                        #             sys.exit()
+                        #             break
+                        #         rate = calc_rate(float(barriers[1]))
+                        #         event_list.append([rate,j,directions[k]])
+
                 else:
                     if hashkeyExists == None:
                         print "WARNING: Final Hashkey not found, more info needed"
@@ -862,8 +880,19 @@ def create_events_list(full_depo_index,surface_lattice):
     del lattice_positions
     del adatom_positions
 
-    #print event_list
     return event_list
+
+# check if event exists
+def add_to_events(final_keys,hashkey,barrier,index,directions,hashkeyExists):
+    events = []
+    for k in xrange(len(final_keys)):
+        if hashkey == final_keys[k]:
+            if barrier != "None":
+                rate = calc_rate(float(barrier))
+                events.append([rate,index,directions[k]])
+            hashkeyExists[k] = 1
+    return events, hashkeyExists
+
 
 # run NEB to find barriers that are not known
 def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
@@ -915,11 +944,14 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                 # minimise lattice
                 mini_fin = Minimise.getMinimiser(params)
                 status = mini_fin.run(finMin)
+                final_key = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
 
                 # check that initial and final are different
                 Index, maxMove, avgMove, Sep = Vectors.maxMovement(iniMin.pos, finMin.pos, cellDims)
                 if maxMove < 0.4:
                     print " difference between ini and fin is too small"
+                    barrier = str("None")
+                    results.append([dir_vector[i], final_key, barrier])
                     break
 
                 # check max movement
@@ -932,7 +964,10 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                     if status:
                         print "WARNING: NEB failed to converge"
                         print "Try changing parameters in lkmcInput.IN"
-                        sys.exit()
+                        barrier = str("None")
+
+                        results.append([dir_vector[i], final_key, barrier])
+                        break
 
                     neb.barrier = round(neb.barrier,6)
 
@@ -941,12 +976,16 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                     results.append([dir_vector[i], final_key, neb.barrier])
                 else:
                     print "WARNING: maxMove too large in final lattice:", maxMove
+                    barrier = str("None")
+                    results.append([dir_vector[i], final_key, barrier])
+
 
         if results:
             write_trans_file(hashkey,results)
             return 0;
     else:
         print "WARNING: maxMove too large in initial lattice"
+        sys.exit()
 
     del ini, iniMin
     del fin, finMin
@@ -999,7 +1038,13 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
             Index, maxMove, avgMove, Sep = Vectors.maxMovement(iniMin.pos, finMin.pos, cellDims)
             if maxMove < 0.4:
                 print " difference between ini and fin is too small"
-                return []
+                barrier = str("None")
+                results = [direction, final_key, barrier]
+                results[0] = map(int,results[0])
+                del ini, iniMin
+                del fin, finMin
+                add_to_trans_file(hashkey,results)
+                return results
 
             # minimise lattice
             mini_fin = Minimise.getMinimiser(params)
@@ -1015,16 +1060,29 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 if status:
                     print "WARNING: NEB failed to converge"
                     print "Try changing parameters in lkmcInput.IN"
-                    sys.exit()
+                    barrier = str("None")
+                    results = [direction, final_key, barrier]
+                    results[0] = map(int,results[0])
+                    del ini, iniMin
+                    del fin, finMin
+                    add_to_trans_file(hashkey,results)
+                    return results
 
                 print neb.barrier
-                neb.barrier = round(neb.barrier,6)
+                barrier = round(neb.barrier,6)
 
-                results = [direction, final_key, neb.barrier]
+                results = [direction, final_key, barrier]
                 results[0] = map(int,results[0])
                 print direction
             else:
                 print "WARNING: maxMove too large in final lattice"
+                barrier = str("None")
+                results = [direction, final_key, barrier]
+                results[0] = map(int,results[0])
+                del ini, iniMin
+                del fin, finMin
+                add_to_trans_file(hashkey,results)
+                return results
 
         if results:
             add_to_trans_file(hashkey,results)
@@ -1070,7 +1128,6 @@ def write_trans_file(hashkey,results):
         if results[i][1] not in new_keys:
             new_keys.append(results[i][1])
             new_barr.append(results[i][2])
-    print new_keys
 
     outfile = open(trans_file, 'w')
     # write vectors first
@@ -1096,7 +1153,6 @@ def add_to_trans_file(hashkey,result):
     vectors = []
     keys =[]
     barr =[]
-
     if os.path.exists(trans_file):
         input_file = open(trans_file, 'r')
         while 1:
@@ -1109,7 +1165,10 @@ def add_to_trans_file(hashkey,result):
                 if len(line) == 2:
                     keys.append(line[0])
                     print keys
-                    barr.append(float(line[1]))
+                    if line[1] != "None":
+                        barr.append(float(line[1]))
+                    else:
+                         barr.append("None")
             else:
                 break
         input_file.close()
@@ -1127,7 +1186,7 @@ def add_to_trans_file(hashkey,result):
     if result[1] not in keys:
             outfile.write(str(result[1])+'  '+str(result[2])+'\n')
     print "Current vol", hashkey
-    print result[1], keys
+    #print result[1], keys
     outfile.close()
 
     return
