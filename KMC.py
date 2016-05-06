@@ -497,10 +497,8 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
 
     # check if large up/down move has taken place. Then check for tripod of atoms
     if (np.abs(dir_vector[0])+np.abs(dir_vector[1])+np.abs(dir_vector[2])) > 3:
-        maxAg = []
-        if round(y-y2,2) < (y_grid_dist2*1.1):
+        if round(y-y2,2) > (y_grid_dist2*1.1):
             nH = neighbour_heights.count(y2)
-            print y2, neighbour_heights
             if nH != 3:
                 print "Moved to 'floating' unstable position", nH
                 return None
@@ -1047,7 +1045,6 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                 write_lattice_LKMC('/'+str(i),full_depo,surface_lattice,natoms)
                 fin = Lattice.readLattice(NEB_dir_name_prefac+"/" + str(i) +".dat")
                 finMin = copy.deepcopy(fin)
-                print "Iteration number:", i
 
                 # minimise lattice
                 mini_fin = Minimise.getMinimiser(params)
@@ -1142,6 +1139,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
 
         # move atom
         moved_list = move_atom(depo_list, direction ,full_depo_index)
+
         if moved_list:
             full_depo[atom_index] = moved_list
 
@@ -1161,6 +1159,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 return results
 
             # minimise lattice
+
             mini_fin = Minimise.getMinimiser(params)
             status = mini_fin.run(finMin)
             if status:
@@ -1206,6 +1205,15 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 del fin, finMin
                 add_to_trans_file(hashkey,results)
                 return results
+        else:
+            print "WARNING: move atom failed"
+            barrier = str("None")
+            results = [direction, final_key, barrier]
+            results[0] = map(int,results[0])
+            del ini, iniMin
+            del fin, finMin
+            add_to_trans_file(hashkey,results)
+            return results
 
         if results:
             add_to_trans_file(hashkey,results)
