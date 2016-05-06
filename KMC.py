@@ -20,10 +20,10 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
-jobStatus = 'BEGIN'            # BEGIN or CNTIN run
+jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 5		        # number of initial depositions
-total_steps = 250        # total number of steps to run
+total_steps = 1000        # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -254,7 +254,7 @@ def deposition_y(full_depo_index,x_coord,z_coord):
 
     i = 0
     while i < 7:
-    	neighbour_heights.append(round(neighbour_pos[i*3+1],7))
+    	neighbour_heights.append(round(neighbour_pos[i*3+1],6))
     	i += 1
 #     print neighbour_heights
 
@@ -495,9 +495,22 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
     y2, neighbour_species, neighbour_heights = deposition_y(full_depo_index,x,z)
     #print neighbour_species
 
+    # check if large up/down move has taken place. Then check for tripod of atoms
+    if (np.abs(dir_vector[0])+np.abs(dir_vector[1])+np.abs(dir_vector[2])) > 3:
+        maxAg = []
+        if round(y-y2,2) < (y_grid_dist2*1.1):
+            nH = neighbour_heights.count(y2)
+            print y2, neighbour_heights
+            if nH != 3:
+                print "Moved to 'floating' unstable position", nH
+                return None
 
     # check for move fails
     if round(y-y_grid_dist-neighbour_heights[0],2) == 0:
+        print "Moved to unstable position", neighbour_species[0]
+        print x,y,z
+        return None
+    if round(y-y_grid_dist2-neighbour_heights[0],2) == 0:
         print "Moved to unstable position", neighbour_species[0]
         print x,y,z
         return None
@@ -794,7 +807,7 @@ def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
         del full_depo
         return final_key
     else:
-        sys.exit()
+        return None
 
 # create the list of possible events
 def create_events_list(full_depo_index,surface_lattice):
@@ -855,9 +868,10 @@ def create_events_list(full_depo_index,surface_lattice):
                         dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
                         # find final hashkeys and save
                         final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
-                        final_keys.append(final_key)
-                        directions.append(dir_vector)
-                        hashkeyExists.append(0)
+                        if final_key:
+                            final_keys.append(final_key)
+                            directions.append(dir_vector)
+                            hashkeyExists.append(0)
 
                     if len(barriers) == 2:
                         # compare final hashkey to trans file
@@ -972,6 +986,9 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
     # minimise lattice
     minimiser = Minimise.getMinimiser(params)
     status = minimiser.run(iniMin)
+    if status:
+        print " Warning: failed to minimise initial lattice"
+        sys.exit()
 
     # check max movement
     Index, maxMove, avgMove, Sep = Vectors.maxMovement(ini.pos, iniMin.pos, cellDims)
@@ -1030,10 +1047,14 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                 write_lattice_LKMC('/'+str(i),full_depo,surface_lattice,natoms)
                 fin = Lattice.readLattice(NEB_dir_name_prefac+"/" + str(i) +".dat")
                 finMin = copy.deepcopy(fin)
+                print "Iteration number:", i
 
                 # minimise lattice
                 mini_fin = Minimise.getMinimiser(params)
                 status = mini_fin.run(finMin)
+                if status:
+                    continue
+
                 final_key = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
 
                 # check that initial and final are different
@@ -1042,7 +1063,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                     print " difference between ini and fin is too small"
                     barrier = str("None")
                     results.append([dir_vector[i], final_key, barrier])
-                    break
+                    continue
 
                 # check max movement
                 Index, maxMove, avgMove, Sep = Vectors.maxMovement(fin.pos, finMin.pos, cellDims)
@@ -1057,7 +1078,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                         barrier = str("None")
 
                         results.append([dir_vector[i], final_key, barrier])
-                        break
+                        continue
 
                     neb.barrier = round(neb.barrier,6)
 
@@ -1085,7 +1106,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
 
 # do a single NEB and add transition to trans files
 def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final_key,natoms):
-    print "SINGE NEB", "="*60
+    print "SINGLE NEB", "="*60
 
     barrier = []
     final_keys = []
@@ -1107,6 +1128,9 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
     # minimise lattice
     minimiser = Minimise.getMinimiser(params)
     status = minimiser.run(iniMin)
+    if status:
+        print " WARNING! failed to minimise initial lattice"
+        sys.exit()
 
     # check max movement
     Index, maxMove, avgMove, Sep = Vectors.maxMovement(ini.pos, iniMin.pos, cellDims)
@@ -1139,6 +1163,15 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
             # minimise lattice
             mini_fin = Minimise.getMinimiser(params)
             status = mini_fin.run(finMin)
+            if status:
+                print " Failed to minimise final"
+                barrier = str("None")
+                results = [direction, final_key, barrier]
+                results[0] = map(int,results[0])
+                del ini, iniMin
+                del fin, finMin
+                add_to_trans_file(hashkey,results)
+                return results
 
             # check max movement
             Index, maxMove, avgMove, Sep = Vectors.maxMovement(fin.pos, finMin.pos, cellDims)
@@ -1370,7 +1403,7 @@ if jobStatus == 'CNTIN':
             full_depo_list = read_lattice(output_dir_name_prefac + '/KMC' + str(num-1) + '.dat',orig_len+4)
             for i in xrange(len(full_depo_list)):
                 full_depo_list[i][4] = orig_len + 1 + i
-            print full_depo_list
+
             natoms += len(full_depo_list)
             CurrentStep = num
             break
@@ -1391,8 +1424,8 @@ print "-" * 80
 # do initial consecutive depos
 
 #New_lattice_path = input_lattice_path
-print "Current Step: 0"
 while CurrentStep < (numberDepos):
+    print "Current Step: ", CurrentStep
     depo_list = []
     depo_list = deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_list,natoms)
     if depo_list:
