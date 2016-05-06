@@ -7,7 +7,7 @@
 
 
 # copyright Adam Lloyd 2016
-
+import time
 import sys
 import os
 import shutil
@@ -20,10 +20,10 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
-jobStatus = 'BEGIN'            # BEGIN or CNTIN (not implemented yet) run
+jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 2		        # number of initial depositions
-total_steps = 5        # total number of steps to run
+numberDepos = 1		        # number of initial depositions
+total_steps = 1        # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -125,30 +125,52 @@ def find_max_height(input_lattice_path):
 
 
 # find max height and species of max atom at a point in the x,z plane
+# def find_max_height_at_points(surface_lattice, full_depo_index, x, z):
+#     max_height = 0.0
+#     max_height_atom = None
+#     full_lattice = surface_lattice + full_depo_index
+#     for i in xrange(len(full_lattice)):
+#         line = full_lattice[i]
+#         if(float(line[1]) > (x-0.1) and float(line[1]) < (x+0.1)):
+#             if(float(line[3]) > (z-0.1) and float(line[3]) < (z+0.1)):
+#                 if(float(line[2]) > max_height):
+#                     max_height = float(line[2])
+#                     max_height_atom = str(line[0])
+#             elif((float(line[3])+box_z) > (z-0.1) and (float(line[3])+box_z) < (z+0.1)):
+#                 if(float(line[2]) > max_height):
+#                     max_height = float(line[2])
+#                     max_height_atom = str(line[0])
+#         elif((float(line[1])+box_x) > (x-0.1) and (float(line[1])+box_x) < (x+0.1)):
+#             if(float(line[3]) > (z-0.1) and float(line[3]) < (z+0.1)):
+#                 if(float(line[2]) > max_height):
+#                     max_height = float(line[2])
+#                     max_height_atom = str(line[0])
+#             elif((float(line[3])+box_z) > (z-0.1) and (float(line[3])+box_z) < (z+0.1)):
+#                 if(float(line[2]) > max_height):
+#                     max_height = float(line[2])
+#                     max_height_atom = str(line[0])
+#     del full_lattice
+#     return max_height, max_height_atom
+
+# find max height and species of max atom at a point in the x,z plane
 def find_max_height_at_points(surface_lattice, full_depo_index, x, z):
     max_height = 0.0
     max_height_atom = None
     full_lattice = surface_lattice + full_depo_index
+
+    # check each x value in lattice against given x
     for i in xrange(len(full_lattice)):
         line = full_lattice[i]
-        if(float(line[1]) > (x-0.1) and float(line[1]) < (x+0.1)):
-            if(float(line[3]) > (z-0.1) and float(line[3]) < (z+0.1)):
+        new_x = round(PBC_pos(float(line[1])-x,box_x),2)
+        if new_x == 0 or new_x == round(box_x,2):
+            new_z = round(PBC_pos(float(line[3])-z,box_z),2)
+
+            # if x value is the same, check z value
+            if new_z == 0 or new_z == round(box_z,2):
                 if(float(line[2]) > max_height):
                     max_height = float(line[2])
                     max_height_atom = str(line[0])
-            elif((float(line[3])+box_z) > (z-0.1) and (float(line[3])+box_z) < (z+0.1)):
-                if(float(line[2]) > max_height):
-                    max_height = float(line[2])
-                    max_height_atom = str(line[0])
-        elif((float(line[1])+box_x) > (x-0.1) and (float(line[1])+box_x) < (x+0.1)):
-            if(float(line[3]) > (z-0.1) and float(line[3]) < (z+0.1)):
-                if(float(line[2]) > max_height):
-                    max_height = float(line[2])
-                    max_height_atom = str(line[0])
-            elif((float(line[3])+box_z) > (z-0.1) and (float(line[3])+box_z) < (z+0.1)):
-                if(float(line[2]) > max_height):
-                    max_height = float(line[2])
-                    max_height_atom = str(line[0])
+
     del full_lattice
     return max_height, max_height_atom
 
@@ -248,6 +270,8 @@ def deposition_y(full_depo_index,x_coord,z_coord):
 def deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_index,natoms):
     x_coord, z_coord = deposition_xz(box_x,box_z,x_grid_dist,z_grid_dist)
     y_coord, nlist, hlist = deposition_y(full_depo_index,x_coord,z_coord)
+    print "NEIGHBOUR LIST:" , nlist
+    print "NEIGHBOUR HEIGHt:", hlist
 
     maxAg = []
     nAg = nlist.count('Ag')
@@ -469,7 +493,7 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
     #print "Moved atom"
 
     moved_list = [atom_species,x,y,z,depo_list[4]]
-    print "Moved atom: ", moved_list
+
     return moved_list
 
 
@@ -515,7 +539,7 @@ def create_roulette(AtomIndex,x_coord,z_coord,second_nb_pos, second_nb_species, 
     return event_list
 
 # pick an event from an event list
-def choose_event(event_list):
+def choose_event(event_list,Time):
     # add on deposition event
     event_list.append([depoRate,0,['Depo']])
 
@@ -545,9 +569,12 @@ def choose_event(event_list):
             print "Rate:", event_list[i][0]
             break
 
-    # TODO: increase time
+    # increase time
+    u = random.random()
+    Time += np.log(1/u)/Q
 
-    return chosenRate, chosenEvent, chosenAtom
+
+    return chosenRate, chosenEvent, chosenAtom, Time
 
 # calcuate list of atoms with graph radius of defect
 def find_volume_atoms(lattice_pos,x,y,z):
@@ -627,7 +654,7 @@ def TransformMatrix(hashkey,volumeAtoms,Lattice1,lattice_positions):
     params.graphRadius = graphRad
 
 
-
+    # DEBUG isomoprhism
     # -------------------------------------------------------------------------------------------
     # Lattice2.charge = np.asarray([0]*LatLength,dtype=np.float64)
     # Lattice1.charge = np.asarray([0]*LatLength,dtype=np.float64)
@@ -673,7 +700,6 @@ def TransformMatrix(hashkey,volumeAtoms,Lattice1,lattice_positions):
         print "Error in initital direction method"
         sys.exit()
 
-    print "Initial direction", initial_direction
 
     return trnsfMatrix
 
@@ -816,8 +842,6 @@ def create_events_list(full_depo_index,surface_lattice):
                 else:
                     #TODO: does not seem to be working correctly!
                     for k in xrange(len(final_keys)):
-                        print "DEBUG"
-                        print hashkeyExists[k], final_keys[k], vol_key
                         if not hashkeyExists[k]:
                             result = singleNEB(directions[k],full_depo_index,surface_lattice,j,vol_key,final_keys[k],natoms)
                             if result:
@@ -1164,7 +1188,6 @@ def add_to_trans_file(hashkey,result):
                     vectors.append([int(line[0]),int(line[1]),int(line[2])])
                 if len(line) == 2:
                     keys.append(line[0])
-                    print keys
                     if line[1] != "None":
                         barr.append(float(line[1]))
                     else:
@@ -1205,7 +1228,7 @@ Time = 0
 full_depo_list = []
 surface_specie= []
 surface_positions = []
-
+startTimeSub = time.time()
 print "="*80
 print "~~~~~~~~ Starting predefined transitions KMC ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 print "="*80
@@ -1255,7 +1278,7 @@ surface_lattice = read_lattice(input_lattice_path,2)
 for i in xrange(len(surface_lattice)):
     surface_specie.append(surface_lattice[i][0])
     surface_positions.append(round(surface_lattice[i][1],7))
-    surface_positions.append(round(surface_lattice[i][2],7))
+    surface_positions.append(round(surface_lattice[i][2],6))
     surface_positions.append(round(surface_lattice[i][3],7))
 
 # set up temp initial and final lattices.dat
@@ -1269,6 +1292,13 @@ if jobStatus == 'CNTIN':
     while 1:
         kmcFile = output_dir_name_prefac + '/KMC' + str(num) + '.dat'
         if not os.path.exists(kmcFile):
+            input_file = open(output_dir_name_prefac + '/KMC' + str(num-1) + '.dat', 'r')
+            # skip first line
+            latline = input_file.readline()
+            latline = input_file.readline()
+            Time = float(input_file.readline())
+            input_file.close()
+
             full_depo_list = read_lattice(output_dir_name_prefac + '/KMC' + str(num-1) + '.dat',orig_len+4)
             for i in xrange(len(full_depo_list)):
                 full_depo_list[i][4] = orig_len + 1 + i
@@ -1316,7 +1346,7 @@ while CurrentStep < (total_steps + 1):
     print "Current Step: ", CurrentStep
 
     event_list = create_events_list(full_depo_list,surface_lattice)
-    chosenRate, chosenEvent, chosenAtom = choose_event(event_list)
+    chosenRate, chosenEvent, chosenAtom, Time = choose_event(event_list, Time)
 
     # do deposition
     if chosenEvent[0] == 'Depo':
@@ -1355,7 +1385,7 @@ while CurrentStep < (total_steps + 1):
     if (CurrentStep-1)%latticeOutEvery == 0:
         latticeNo = (CurrentStep-1)/latticeOutEvery
         print "Writing lattice: KMC", latticeNo
-        Time = Time + (1/chosenRate)*1E15
+        #Time = Time + (1/chosenRate)*1E15
         Barrier = find_barrier_height(chosenRate)
         write_lattice(latticeNo,full_depo_list,surface_lattice,natoms,Time,Barrier)
     print "-" * 80
@@ -1375,6 +1405,7 @@ print "Number of depositions:		", len(full_depo_list)
 print "="*80
 print "Predefined KMC        Copyright Adam Lloyd 2016 "
 print "="*80
-
+FinalTimeSub = time.time() - startTimeSub
+print "Time: ", FinalTimeSub
 del full_depo_list
 del surface_lattice
