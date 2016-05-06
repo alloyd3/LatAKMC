@@ -22,8 +22,8 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 #- User inputs hard coded in script
 jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 1		        # number of initial depositions
-total_steps = 1        # total number of steps to run
+numberDepos = 5		        # number of initial depositions
+total_steps = 250        # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -35,8 +35,8 @@ MaxHeight = 30              # Dimension of cell in y direction
 
 # for (0001) ZnO only
 x_grid_dist = 0.9497411251   # distance in x direction between each atom in lattice
-# TODO: second layer increase to 2.1
-y_grid_dist = 1.55            # distance in y direction between each atom in lattice
+y_grid_dist = 1.55            # distance in y direction between surface and first layer (eg O layer - Ag layer)
+y_grid_dist2 = 2.1             # distance between deposited layers (eg. Ag layer - Ag layer)
 z_grid_dist = 1.6449999809   # distance in z direction between each atom in lattice
 #------------------------------------------------------------------------------
 
@@ -263,15 +263,13 @@ def deposition_y(full_depo_index,x_coord,z_coord):
     y_max = max(neighbour_heights)
 
     # add y dist to max height found
-    y_coordinate = round(y_max,7)
+    y_coordinate = round(y_max,6)
     return y_coordinate, neighbour_species, neighbour_heights
 
 # do deposition
 def deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_index,natoms):
     x_coord, z_coord = deposition_xz(box_x,box_z,x_grid_dist,z_grid_dist)
     y_coord, nlist, hlist = deposition_y(full_depo_index,x_coord,z_coord)
-    print "NEIGHBOUR LIST:" , nlist
-    print "NEIGHBOUR HEIGHt:", hlist
 
     maxAg = []
     nAg = nlist.count('Ag')
@@ -283,10 +281,21 @@ def deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_index,natoms):
                 if len(maxAg) == 3:
                     print "landed on top of 3 Ag atoms"
 
-    y_coord += y_grid_dist
+    # check if y_coord is at least surface height
     if (y_coord < initial_surface_height):
-        print "ERROR y height is less than initial surface height", y_coord
+        print "ERROR: y height is less than initial surface height", y_coord
+        sys.exit()
         return
+
+    # if y_coord is initial surface height
+    if round(y_coord - initial_surface_height,2) == 0:
+        y_coord += y_grid_dist
+
+    # if y_coord > initial surface height
+    else:
+        y_coord += y_grid_dist2
+
+
 
 
     print "Trying to deposit %s atom at %f, %f, %f" % (atom_species, x_coord, y_coord, z_coord)
@@ -310,8 +319,8 @@ def deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_index,natoms):
 
 # find PBC position in one direction
 def PBC_pos(x,box_x):
-	x = round(x,7)
-	box_x = round(box_x,7)
+	x = round(x,6)
+	box_x = round(box_x,6)
 	if x >= box_x:
 		while x >= box_x:
 			x = x - box_x
@@ -476,20 +485,47 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
     y = depo_list[2]
     z = depo_list[3]
 
-    x = round(PBC_pos(x+dir_vector[0]*x_grid_dist,box_x),7)
-    y = round(y+dir_vector[1]*y_grid_dist,7)
-    z = round(PBC_pos(z+dir_vector[2]*z_grid_dist,box_z),7)
+    x = round(PBC_pos(x+dir_vector[0]*x_grid_dist,box_x),6)
+    y = round(y+dir_vector[1]*y_grid_dist2,6)
+    z = round(PBC_pos(z+dir_vector[2]*z_grid_dist,box_z),6)
+
+
 
 
     y2, neighbour_species, neighbour_heights = deposition_y(full_depo_index,x,z)
     #print neighbour_species
 
 
-    # check if Ag moved to unstable sites
-    # TODO: check if on top of another Ag
-    if neighbour_species[0] == 'O_':
-    	print "moved on top of surface Oxygen: unstable position"
-    	return None
+    # check for move fails
+    if round(y-y_grid_dist-neighbour_heights[0],2) == 0:
+        print "Moved to unstable position", neighbour_species[0]
+        print x,y,z
+        return None
+
+    if round(y-neighbour_heights[0],2) == 0:
+        print "Moved into existing atom!"
+        print x,y,z
+        sys.exit()
+        return None
+
+    AdNeighbours = 0
+    for i in xrange(len(neighbour_species)):
+            if round(neighbour_heights[0]-y,2) == 0:
+                AdNeighbours += 1
+
+    # if near neighbours exist in plane fail move
+    if dir_vector[1] == 0:
+        # will always be at least 1 as it includes self pre-move
+        if AdNeighbours > 1:
+            print "Moved too close to existing atoms"
+            print x,y,z
+            return None
+    else:
+        if AdNeighbours > 0:
+            print "Moved too close to existing atoms"
+            print x,y,z
+            return None
+
     #print "Moved atom"
 
     moved_list = [atom_species,x,y,z,depo_list[4]]
@@ -954,6 +990,36 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
         dir_vector.append([-1,0,1])
         dir_vector.append([-2,0,0])
 
+        # if atom if above firts layer
+        atom_height = full_depo_index[atom_index][2]
+        if atom_height > (initial_surface_height + y_grid_dist*1.1):
+            print "Adding move down transitions"
+            dir_vector.append([4,-1,0])
+            dir_vector.append([2,-1,-2])
+            dir_vector.append([-2,-1,-2])
+            dir_vector.append([2,-1,2])
+            dir_vector.append([-2,-1,2])
+            dir_vector.append([-4,-1,0])
+
+        # check if surrounds atom
+        AdNeighbours = 0
+        nb_pos, nb_species = find_second_neighbours(full_depo_index[atom_index][1],full_depo_index[atom_index][3],full_depo_index)
+        for j in xrange(len(nb_pos)):
+            if round(nb_pos[j][1] - atom_height,2) == 0:
+                if nb_species[j] == atom_species:
+                    AdNeighbours += 1
+
+        # if 2 or more atoms surround current atom, look at up moves
+        if AdNeighbours > 1:
+            print "Adding move up transitions"
+            dir_vector.append([4,1,0])
+            dir_vector.append([2,1,-2])
+            dir_vector.append([-2,1,-2])
+            dir_vector.append([2,1,2])
+            dir_vector.append([-2,1,2])
+            dir_vector.append([-4,1,0])
+
+
         for i in xrange(len(dir_vector)):
             # move atom
             moved_list = move_atom(depo_list, dir_vector[i] ,full_depo_index)
@@ -1235,6 +1301,7 @@ print "="*80
 # directory setup
 initial_dir = os.getcwd()
 output_dir_name_prefac = initial_dir + '/Output'
+Trans_dir = initial_dir + '/Transitions'
 Volumes_dir = initial_dir + '/Volumes'
 NEB_dir_name_prefac = initial_dir + '/Temp'
 
@@ -1260,7 +1327,8 @@ if not os.path.exists(output_dir_name_prefac):
     os.makedirs(output_dir_name_prefac)
 if not os.path.exists(NEB_dir_name_prefac):
     os.makedirs(NEB_dir_name_prefac)
-
+if not os.path.exists(Trans_dir):
+    os.makedirs(Trans_dir)
 print "~"*80
 
 # read lattice header (in md_input dir)
@@ -1277,9 +1345,9 @@ print "initial_surface_height: ", initial_surface_height
 surface_lattice = read_lattice(input_lattice_path,2)
 for i in xrange(len(surface_lattice)):
     surface_specie.append(surface_lattice[i][0])
-    surface_positions.append(round(surface_lattice[i][1],7))
+    surface_positions.append(round(surface_lattice[i][1],6))
     surface_positions.append(round(surface_lattice[i][2],6))
-    surface_positions.append(round(surface_lattice[i][3],7))
+    surface_positions.append(round(surface_lattice[i][3],6))
 
 # set up temp initial and final lattices.dat
 params = Input.getLKMCParams(1, "", "lkmcInput.IN")
