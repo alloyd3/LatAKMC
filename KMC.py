@@ -22,8 +22,8 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 #- User inputs hard coded in script
 jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 5		        # number of initial depositions
-total_steps = 1000        # total number of steps to run
+numberDepos = 1		        # number of initial depositions
+total_steps = 10             # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -32,6 +32,9 @@ graphRad = 5.9                # graph radius of defect volumes (Angstroms)
 depoRate = 1.2e3            # deposition rate
 maxMoveCriteria = 0.6        # maximum distance an atom can move after relaxation (pre NEB)
 MaxHeight = 30              # Dimension of cell in y direction
+IncludeUpTrans = 0          # Include transitions up step edges
+IncludeDownTrans = 1        # Include transitions down step edges
+
 
 # for (0001) ZnO only
 x_grid_dist = 0.9497411251   # distance in x direction between each atom in lattice
@@ -310,6 +313,7 @@ def deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_index,natoms):
         	print "deposited on top of surface Oxygen: unstable position"
         	return None
 
+
     natoms += 1
 
     print "SUCCESS: Number of atoms: ", natoms
@@ -499,9 +503,18 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
     if (np.abs(dir_vector[0])+np.abs(dir_vector[1])+np.abs(dir_vector[2])) > 3:
         if round(y-y2,2) > (y_grid_dist2*1.1):
             nH = neighbour_heights.count(y2)
-            if nH != 3:
+            if nH < 3:
                 print "Moved to 'floating' unstable position", nH
                 return None
+    else:
+        nH = neighbour_heights.count(y-y_grid_dist2)
+        if nH < 3:
+            nH = neighbour_heights.count(y-y_grid_dist)
+            if nH < 3:
+                print "Moved to 'floating' unstable position", nH
+                return None
+
+
 
     # check for move fails
     if round(y-y_grid_dist-neighbour_heights[0],2) == 0:
@@ -516,7 +529,6 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
     if round(y-neighbour_heights[0],2) == 0:
         print "Moved into existing atom!"
         print x,y,z
-        sys.exit()
         return None
 
     AdNeighbours = 0
@@ -794,9 +806,6 @@ def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
         # find atoms in defect volume
         volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
 
-        #new_list = [x+1 for x in volumeAtoms]
-
-
         # create hashkey
         final_key, Lattice1 = hashkey(lattice_positions,specie_list,volumeAtoms)
         del Lattice1
@@ -1005,39 +1014,42 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
         dir_vector.append([-1,0,1])
         dir_vector.append([-2,0,0])
 
-        # if atom if above firts layer
-        atom_height = full_depo_index[atom_index][2]
-        if atom_height > (initial_surface_height + y_grid_dist*1.1):
-            print "Adding move down transitions"
-            dir_vector.append([4,-1,0])
-            dir_vector.append([2,-1,-2])
-            dir_vector.append([-2,-1,-2])
-            dir_vector.append([2,-1,2])
-            dir_vector.append([-2,-1,2])
-            dir_vector.append([-4,-1,0])
+        if IncludeDownTrans:
+            # if atom if above first layer
+            atom_height = full_depo_index[atom_index][2]
+            if atom_height > (initial_surface_height + y_grid_dist*1.1):
+                print "Adding move down transitions"
+                dir_vector.append([4,-1,0])
+                dir_vector.append([2,-1,-2])
+                dir_vector.append([-2,-1,-2])
+                dir_vector.append([2,-1,2])
+                dir_vector.append([-2,-1,2])
+                dir_vector.append([-4,-1,0])
 
-        # check if surrounds atom
-        AdNeighbours = 0
-        nb_pos, nb_species = find_second_neighbours(full_depo_index[atom_index][1],full_depo_index[atom_index][3],full_depo_index)
-        for j in xrange(len(nb_pos)):
-            if round(nb_pos[j][1] - atom_height,2) == 0:
-                if nb_species[j] == atom_species:
-                    AdNeighbours += 1
+        if IncludeUpTrans:
+            #check if surrounds atom
+            AdNeighbours = 0
+            nb_pos, nb_species = find_second_neighbours(full_depo_index[atom_index][1],full_depo_index[atom_index][3],full_depo_index)
+            for j in xrange(len(nb_pos)):
+                if round(nb_pos[j][1] - atom_height,2) == 0:
+                    if nb_species[j] == atom_species:
+                        AdNeighbours += 1
 
-        # if 2 or more atoms surround current atom, look at up moves
-        if AdNeighbours > 1:
-            print "Adding move up transitions"
-            dir_vector.append([4,1,0])
-            dir_vector.append([2,1,-2])
-            dir_vector.append([-2,1,-2])
-            dir_vector.append([2,1,2])
-            dir_vector.append([-2,1,2])
-            dir_vector.append([-4,1,0])
+            # if 2 or more atoms surround current atom, look at up moves
+            if AdNeighbours > 1:
+                print "Adding move up transitions"
+                dir_vector.append([4,1,0])
+                dir_vector.append([2,1,-2])
+                dir_vector.append([-2,1,-2])
+                dir_vector.append([2,1,2])
+                dir_vector.append([-2,1,2])
+                dir_vector.append([-4,1,0])
 
 
         for i in xrange(len(dir_vector)):
             # move atom
             moved_list = move_atom(depo_list, dir_vector[i] ,full_depo_index)
+            print dir_vector[i]
             if moved_list:
                 full_depo[atom_index] = moved_list
 
@@ -1088,7 +1100,9 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                     results.append([dir_vector[i], final_key, barrier])
 
 
+
         if results:
+            print results
             write_trans_file(hashkey,results)
             return 0;
     else:
@@ -1108,10 +1122,6 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
     barrier = []
     final_keys = []
     results = None
-
-    # set up temp initial and final lattices.dat
-    params = Input.getLKMCParams(1, "", "lkmcInput.IN")
-    Input.readGlobals("lkmcInput.IN")
 
     print natoms
     # create initial lattice
@@ -1501,9 +1511,35 @@ while CurrentStep < (total_steps + 1):
 
 #autoNEB(full_depo_list,surface_lattice,0,5,401)
 
+
+# ==============================================================================
+# ==============================================================================
+# # DEBUGING up moves
+# adatom_positions = []
+# adatom_specie = []
+#
 # for i in xrange(len(full_depo_list)):
-#     depo_list = full_depo_list[i]
-#     create_events_list(full_depo_list,surface_lattice,depo_list[1],depo_list[3],depo_list[4])
+#     adatom_specie.append(full_depo_list[i][0])
+#     adatom_positions.append(full_depo_list[i][1])
+#     adatom_positions.append(full_depo_list[i][2])
+#     adatom_positions.append(full_depo_list[i][3])
+# lattice_positions = surface_positions + adatom_positions
+# specie_list = surface_specie + adatom_specie
+#
+# depo_list = full_depo_list[0]
+#
+# volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
+#
+#
+# new_list = [x+1 for x in volumeAtoms]
+# print new_list
+#
+# vol_key, Lattice1 = hashkey(lattice_positions,specie_list,volumeAtoms)
+# SaveVolume(vol_key,volumeAtoms,lattice_positions,specie_list)
+# status = autoNEB(full_depo_list,surface_lattice,0,vol_key,natoms)
+
+# ==============================================================================
+# ==============================================================================
 
 
 
