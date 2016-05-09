@@ -23,7 +23,7 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 1		        # number of initial depositions
-total_steps = 10             # total number of steps to run
+total_steps = 3000            # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -32,8 +32,8 @@ graphRad = 5.9                # graph radius of defect volumes (Angstroms)
 depoRate = 1.2e3            # deposition rate
 maxMoveCriteria = 0.6        # maximum distance an atom can move after relaxation (pre NEB)
 MaxHeight = 30              # Dimension of cell in y direction
-IncludeUpTrans = 0          # Include transitions up step edges
-IncludeDownTrans = 1        # Include transitions down step edges
+IncludeUpTrans = 0          # Booleon: Include transitions up step edges (turning off speeds up simulation)
+IncludeDownTrans = 1        # Booleon: Include transitions down step edges
 
 
 # for (0001) ZnO only
@@ -630,7 +630,7 @@ def choose_event(event_list,Time):
 
     # increase time
     u = random.random()
-    Time += np.log(1/u)/Q
+    Time += (np.log(1/u)/Q)*1E15
 
 
     return chosenRate, chosenEvent, chosenAtom, Time
@@ -999,7 +999,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
 
     # check max movement
     Index, maxMove, avgMove, Sep = Vectors.maxMovement(ini.pos, iniMin.pos, cellDims)
-    print maxMove
+
     if maxMove < maxMoveCriteria:
         #ini.writeLattice("initialMin.dat")
         full_depo = copy.deepcopy(full_depo_index)
@@ -1049,7 +1049,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
         for i in xrange(len(dir_vector)):
             # move atom
             moved_list = move_atom(depo_list, dir_vector[i] ,full_depo_index)
-            print dir_vector[i]
+            #print dir_vector[i]
             if moved_list:
                 full_depo[atom_index] = moved_list
 
@@ -1069,7 +1069,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                 # check that initial and final are different
                 Index, maxMove, avgMove, Sep = Vectors.maxMovement(iniMin.pos, finMin.pos, cellDims)
                 if maxMove < 0.4:
-                    print " difference between ini and fin is too small"
+                    print " difference between ini and fin is too small:", maxMove
                     barrier = str("None")
                     results.append([dir_vector[i], final_key, barrier])
                     continue
@@ -1141,7 +1141,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
 
     # check max movement
     Index, maxMove, avgMove, Sep = Vectors.maxMovement(ini.pos, iniMin.pos, cellDims)
-    print maxMove
+
     if maxMove < maxMoveCriteria:
         #ini.writeLattice("initialMin.dat")
         full_depo = copy.deepcopy(full_depo_index)
@@ -1159,7 +1159,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
             finMin = copy.deepcopy(fin)
             Index, maxMove, avgMove, Sep = Vectors.maxMovement(iniMin.pos, finMin.pos, cellDims)
             if maxMove < 0.4:
-                print " difference between ini and fin is too small"
+                print " difference between ini and fin is too small", maxMove
                 barrier = str("None")
                 results = [direction, final_key, barrier]
                 results[0] = map(int,results[0])
