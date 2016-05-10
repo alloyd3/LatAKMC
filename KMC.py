@@ -23,7 +23,7 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 1		        # number of initial depositions
-total_steps = 3000            # total number of steps to run
+total_steps = 4000            # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -502,14 +502,14 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
     # check if large up/down move has taken place. Then check for tripod of atoms
     if (np.abs(dir_vector[0])+np.abs(dir_vector[1])+np.abs(dir_vector[2])) > 3:
         if round(y-y2,2) > (y_grid_dist2*1.1):
-            nH = neighbour_heights.count(y2)
+            nH = neighbour_heights.count(round(y2,6))
             if nH < 3:
                 print "Moved to 'floating' unstable position", nH
                 return None
     else:
-        nH = neighbour_heights.count(y-y_grid_dist2)
+        nH = neighbour_heights.count(round(y-y_grid_dist2,6))
         if nH < 3:
-            nH = neighbour_heights.count(y-y_grid_dist)
+            nH = neighbour_heights.count(round(y-y_grid_dist,6))
             if nH < 3:
                 print "Moved to 'floating' unstable position", nH
                 return None
@@ -1049,7 +1049,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
         for i in xrange(len(dir_vector)):
             # move atom
             moved_list = move_atom(depo_list, dir_vector[i] ,full_depo_index)
-            #print dir_vector[i]
+            print dir_vector[i]
             if moved_list:
                 full_depo[atom_index] = moved_list
 
@@ -1526,7 +1526,7 @@ while CurrentStep < (total_steps + 1):
 # lattice_positions = surface_positions + adatom_positions
 # specie_list = surface_specie + adatom_specie
 #
-# depo_list = full_depo_list[0]
+# depo_list = full_depo_list[27]
 #
 # volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
 #
@@ -1535,8 +1535,9 @@ while CurrentStep < (total_steps + 1):
 # print new_list
 #
 # vol_key, Lattice1 = hashkey(lattice_positions,specie_list,volumeAtoms)
+# print vol_key
 # SaveVolume(vol_key,volumeAtoms,lattice_positions,specie_list)
-# status = autoNEB(full_depo_list,surface_lattice,0,vol_key,natoms)
+# status = autoNEB(full_depo_list,surface_lattice,27,vol_key,natoms)
 
 # ==============================================================================
 # ==============================================================================
