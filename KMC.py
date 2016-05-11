@@ -20,10 +20,10 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
-jobStatus = 'BEGIN'            # BEGIN or CNTIN run
+jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 5		        # number of initial depositions
-total_steps = 10000            # total number of steps to run
+total_steps = 30000            # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -181,6 +181,28 @@ def find_atom_below(surface_lattice, full_depo_index,x,z):
     del full_lattice
     return max_height, atom_below
 
+# function reads off lattice, and finds atom below a point
+def find_atom_below(surface_lattice, full_depo_index,x,z):
+    max_height = 0.0
+    max_height_atom = None
+    atom_below = None
+
+    # check each x value in lattice against given x
+    full_lattice = surface_lattice + full_depo_index
+    for i in xrange(len(full_lattice)):
+        line = full_lattice[i]
+        new_x = round(PBC_pos(float(line[1])-x,box_x),2)
+        if new_x == 0 or new_x == round(box_x,2):
+            new_z = round(PBC_pos(float(line[3])-z,box_z),2)
+
+            # if x value is the same, check z value
+            if new_z == 0 or new_z == round(box_z,2):
+                atom_below = max_height_atom
+                max_height = float(line[2])
+                max_height_atom = str(line[0])
+
+    del full_lattice
+    return max_height, atom_below
 
 # find how many grid points in each direction
 def grid_size(box_x,box_y,box_z):
@@ -245,6 +267,7 @@ def deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_index,natoms):
     x_coord, z_coord = deposition_xz(box_x,box_z,x_grid_dist,z_grid_dist)
     y_coord, nlist, hlist = deposition_y(full_depo_index,x_coord,z_coord)
 
+    # Potential Deposition erros for ZnO-Ag system
     maxAg = []
     nAg = nlist.count('Ag')
     nH = hlist.count(y_coord)
@@ -346,7 +369,6 @@ def find_neighbours(x,z,atom_below,y_max_0,full_depo_index):
     neighbour_species = [atom_below,n,nw,sw,ne,se,s]
     #print neighbour_species
     neighbour_pos = [x,y_max_0,z,n_x,n_y,n_z,nw_x,nw_y,nw_z,sw_x,sw_y,sw_z,s_x,s_y,s_z,se_x,se_y,se_z,ne_x,ne_y,ne_z]
-    #neighbour_pos = [x,y_max_0,z,n_x,n_y,n_z,nw_x,nw_y,nw_z,sw_x,sw_y,sw_z,ne_x,ne_y,ne_z,se_x,se_y,se_z,s_x,s_y,s_z]
 
     return neighbour_pos, neighbour_species
 
@@ -557,18 +579,18 @@ def choose_event(event_list,Time):
     u = random.random()
     Time += (np.log(1/u)/Q)*1E15
 
-
     return chosenRate, chosenEvent, chosenAtom, Time
 
 # calcuate list of atoms with graph radius of defect
 def find_volume_atoms(lattice_pos,x,y,z):
     volume_atoms = []
+
     for i in xrange(len(lattice_pos)/3):
         # find distance squared between 2 atoms
         dist = PBC_distance(lattice_pos[3*i],lattice_pos[3*i+1],lattice_pos[3*i+2],x,y,z)
         if dist < (graphRad * graphRad):
-            # might be i+1
             volume_atoms.append(i)
+
     return volume_atoms
 
 # calculate hashkey for a defect
@@ -586,15 +608,17 @@ def hashkey(lattice_positions,specie_list,volumeAtoms):
         # else:
         #     specie_list[i] = 3
 
+    # set lattice object values for hashkey
     lattice.specie = np.asarray(specie_list,np.int32)
     lattice.cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
     lattice.specieList = np.asarray(['O_','Zn','Ag'],dtype=np.character)
     lattice.pos = np.around(lattice.pos,decimals = 5)
 
     volumeAtoms = np.asarray(volumeAtoms,dtype=np.int32)
-    # Globals.PBC = [1,0,1]
+
     params.graphRadius = graphRad
 
+    # get hashkey
     hashkey = Graphs.getHashKeyForAVolume(params,volumeAtoms,lattice)
 
     return hashkey, lattice
@@ -876,6 +900,8 @@ def add_to_events(final_keys,hashkey,barrier,index,directions,hashkeyExists):
 
 # run NEB to find barriers that are not known
 def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
+    print "AUTO NEB", "="*60
+
     barrier = []
     final_keys = []
     results = []
@@ -903,7 +929,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
         full_depo = copy.deepcopy(full_depo_index)
         depo_list = full_depo[atom_index]
 
-        # just look at 6 initial directions
+        # check 6 initial directions
         dir_vector = []
         dir_vector.append([2,0,0])
         dir_vector.append([1,0,-1])
@@ -912,6 +938,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
         dir_vector.append([-1,0,1])
         dir_vector.append([-2,0,0])
 
+        # include down transitions
         if IncludeDownTrans:
             # if atom if above first layer
             atom_height = full_depo_index[atom_index][2]
@@ -924,6 +951,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                 dir_vector.append([-2,-1,2])
                 dir_vector.append([-4,-1,0])
 
+        # include up transitions
         if IncludeUpTrans:
             #check if surrounds atom
             AdNeighbours = 0
@@ -996,8 +1024,6 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                     print "WARNING: maxMove too large in final lattice:", maxMove
                     barrier = str("None")
                     results.append([dir_vector[i], final_key, barrier])
-
-
 
         if results:
             print results
@@ -1337,7 +1363,7 @@ if jobStatus == 'CNTIN':
                 full_depo_list[i][4] = orig_len + 1 + i
 
             natoms += len(full_depo_list)
-            CurrentStep = num
+            CurrentStep = num * latticeOutEvery
             break
         num += 1
 
@@ -1417,7 +1443,7 @@ while CurrentStep < (total_steps + 1):
 
 # ==============================================================================
 # ==============================================================================
-# # DEBUGING up moves
+# # DEBUGING moves
 # adatom_positions = []
 # adatom_specie = []
 #
