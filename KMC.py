@@ -20,10 +20,10 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
-jobStatus = 'CNTIN'            # BEGIN or CNTIN run
+jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 5		        # number of initial depositions
-total_steps = 30000            # total number of steps to run
+total_steps = 10000            # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -147,39 +147,6 @@ def find_max_height_at_points(surface_lattice, full_depo_index, x, z):
 
     del full_lattice
     return max_height, max_height_atom
-
-# function reads off lattice, and finds atom below a point
-def find_atom_below(surface_lattice, full_depo_index,x,z):
-    max_height = 0.0
-    max_height_atom = None
-    atom_below = None
-    full_lattice = surface_lattice + full_depo_index
-    for i in xrange(len(full_lattice)):
-        line = full_lattice[i]
-        if(float(line[1]) > (x-0.1) and float(line[1]) < (x+0.1)):
-            if(float(line[3]) > (z-0.1) and float(line[3]) < (z+0.1)):
-                if(float(line[2]) > max_height):
-                    atom_below = max_height_atom
-                    max_height = float(line[2])
-                    max_height_atom = str(line[0])
-            elif((float(line[3])+box_z) > (z-0.1) and (float(line[3])+box_z) < (z+0.1)):
-                if(float(line[2]) > max_height):
-                    atom_below = max_height_atom
-                    max_height = float(line[2])
-                    max_height_atom = str(line[0])
-        elif((float(line[1])+box_x) > (x-0.1) and (float(line[1])+box_x) < (x+0.1)):
-            if(float(line[3]) > (z-0.1) and float(line[3]) < (z+0.1)):
-                if(float(line[2]) > max_height):
-                    atom_below = max_height_atom
-                    max_height = float(line[2])
-                    max_height_atom = str(line[0])
-            elif((float(line[3])+box_z) > (z-0.1) and (float(line[3])+box_z) < (z+0.1)):
-                if(float(line[2]) > max_height):
-                    atom_below = max_height_atom
-                    max_height = float(line[2])
-                    max_height_atom = str(line[0])
-    del full_lattice
-    return max_height, atom_below
 
 # function reads off lattice, and finds atom below a point
 def find_atom_below(surface_lattice, full_depo_index,x,z):
