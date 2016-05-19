@@ -19,8 +19,8 @@ type1_rate = 8.77E7          # rate for type1 basin state to move to type2 basin
 type2_rate = 1.56E10         # rate for type2 basin state to move to type1 basin state
 type1_escapeRate = 8.02      # rate to escape basin from type1 basin state
 type2_escapeRate = 1.37E7    # rate to escape basin from type2 basin state
-start = 2                    # length on hexagon edge lengths for islands to consider
-finish = 4
+start = 12                    # length on hexagon edge lengths for islands to consider
+finish = 14
 nbdist = 2                   # distance(Ang)
 
 
@@ -196,7 +196,7 @@ for t in range(start,finish):
     numAg = 2*numAg
     numAg += 2*t-1
 
-    print numAg
+    #print numAg
 
     # find T matrix
     conMat, tao1, boundAtoms = connectivity(lattice)
@@ -206,27 +206,32 @@ for t in range(start,finish):
 
     # attempt inverse
     try:
-        occupVect = np.linalg.inv(matrix2bInv)
+        occupVect1 = np.linalg.inv(matrix2bInv)
     except np.linalg.LinAlgError:
         print "Error: Transition Matrix not invertible."
-
-    # assume current state is 0 (try others)
-    occupVect0 = np.zeros(len(lattice))
-    occupVect0[0] = 1.0
-    occupVect = np.inner(occupVect, occupVect0)
-    occupVect = np.squeeze(np.asarray(occupVect))
-
-    #print occupVect
-    #print "Basin states: " , len(lattice)
-
-    # mean residence time in basin state i before leaving the basin
-    tao = np.zeros(len(lattice), np.float64)
-    taoSum = 0.0
-    for j in range(len(lattice)):
-        tao[j] = tao1[j] * occupVect[j]
-        taoSum += tao[j]
-
-    print len(lattice),taoSum
+    
+    meanRates = []
+    for w in xrange(len(lattice)):
+            
+        # assume current state is 0 (try others)
+        occupVect0 = np.zeros(len(lattice))
+        occupVect0[w] = 1.0
+        occupVect = np.inner(occupVect1, occupVect0)
+        occupVect = np.squeeze(np.asarray(occupVect))
+    
+        #print occupVect
+        #print "Basin states: " , len(lattice)
+    
+        # mean residence time in basin state i before leaving the basin
+        tao = np.zeros(len(lattice), np.float64)
+        taoSum = 0.0
+        for j in range(len(lattice)):
+            tao[j] = tao1[j] * occupVect[j]
+            taoSum += tao[j]
+        meanRates.append(taoSum)
+        #print len(lattice),taoSum
+        
+    print " Average rate: ",len(lattice), sum(meanRates)/len(meanRates)
 
     # optional write out lattice
-    write_lattice(lattice)
+    #write_lattice(lattice)
