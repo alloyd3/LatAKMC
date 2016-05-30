@@ -20,16 +20,16 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
-jobStatus = 'CNTIN'            # BEGIN or CNTIN run
+jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 25		        # number of initial depositions
-total_steps = 3000            # total number of steps to run
+total_steps = 1000            # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
 boltzmann = 8.62E-05        # Boltzmann constant (8.62E-05)
 graphRad = 5.9                # graph radius of defect volumes (Angstroms)
-depoRate = 9.6e3            # deposition rate
+depoRate = 5184            # deposition rate
 maxMoveCriteria = 0.6        # maximum distance an atom can move after relaxation (pre NEB)
 MaxHeight = 30              # Dimension of cell in y direction
 IncludeUpTrans = 0          # Booleon: Include transitions up step edges (turning off speeds up simulation)
@@ -698,8 +698,6 @@ def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
 
     # move atom to final position
     moved_list = move_atom(depo_list, dir_vector ,full_depo)
-    movedTime = time.time() - startTimeSub
-    print "movedTime: ", movedTime
 
     if moved_list:
         full_depo[atom_index] = moved_list
