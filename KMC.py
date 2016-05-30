@@ -20,16 +20,16 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
-jobStatus = 'BEGIN'            # BEGIN or CNTIN run
+jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 5		        # number of initial depositions
-total_steps = 10000            # total number of steps to run
+numberDepos = 25		        # number of initial depositions
+total_steps = 3000            # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
 boltzmann = 8.62E-05        # Boltzmann constant (8.62E-05)
 graphRad = 5.9                # graph radius of defect volumes (Angstroms)
-depoRate = 1.2e3            # deposition rate
+depoRate = 9.6e3            # deposition rate
 maxMoveCriteria = 0.6        # maximum distance an atom can move after relaxation (pre NEB)
 MaxHeight = 30              # Dimension of cell in y direction
 IncludeUpTrans = 0          # Booleon: Include transitions up step edges (turning off speeds up simulation)
@@ -271,6 +271,9 @@ def deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_index,natoms):
         if nlist[0] == 'O_':
         	print "deposited on top of surface Oxygen: unstable position"
         	return None
+        # if nlist[0] == 'Zn':
+        # 	print "deposited on top of surface Oxygen: unstable position"
+        # 	return None
 
 
     natoms += 1
@@ -695,6 +698,9 @@ def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
 
     # move atom to final position
     moved_list = move_atom(depo_list, dir_vector ,full_depo)
+    movedTime = time.time() - startTimeSub
+    print "movedTime: ", movedTime
+
     if moved_list:
         full_depo[atom_index] = moved_list
         depo_list = full_depo[atom_index]
@@ -722,6 +728,7 @@ def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
 
 # create the list of possible events
 def create_events_list(full_depo_index,surface_lattice):
+
     event_list = []
     adatom_positions = []
     adatom_specie = []
@@ -738,6 +745,8 @@ def create_events_list(full_depo_index,surface_lattice):
     lattice_positions = surface_positions + adatom_positions
     specie_list = surface_specie + adatom_specie
 
+
+
     # find transitions for each adatom
     for j in xrange(len(full_depo_list)):
         final_keys = []
@@ -746,6 +755,7 @@ def create_events_list(full_depo_index,surface_lattice):
         hashkeyExists = []
 
         # find atoms in volume
+
         volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
 
         #new_list = [x+1 for x in volumeAtoms]
@@ -779,6 +789,7 @@ def create_events_list(full_depo_index,surface_lattice):
                         dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
                         # find final hashkeys and save
                         final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
+
                         if final_key:
                             final_keys.append(final_key)
                             directions.append(dir_vector)
@@ -1320,7 +1331,7 @@ if jobStatus == 'CNTIN':
             # skip first line
             latline = input_file.readline()
             latline = input_file.readline()
-            Time = float(input_file.readline())
+            Time = float(latline)
             input_file.close()
 
             full_depo_list = read_lattice(output_dir_name_prefac + '/KMC' + str(num-1) + '.dat',orig_len+4)
@@ -1362,6 +1373,7 @@ print "-" * 80
 print full_depo_list
 index = CurrentStep
 
+
 # do KMC run
 while CurrentStep < (total_steps + 1):
     # TODO: include a verbosity level
@@ -1395,6 +1407,7 @@ while CurrentStep < (total_steps + 1):
                 index += 1
         CurrentStep += 1
 
+
     # write out lattice
     if (CurrentStep-1)%latticeOutEvery == 0:
         latticeNo = (CurrentStep-1)/latticeOutEvery
@@ -1402,6 +1415,7 @@ while CurrentStep < (total_steps + 1):
 
         Barrier = find_barrier_height(chosenRate)
         write_lattice(latticeNo,full_depo_list,surface_lattice,natoms,Time,Barrier)
+
 
     print "-" * 80
 
