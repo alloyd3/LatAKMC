@@ -22,8 +22,8 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 #- User inputs hard coded in script
 jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 25		        # number of initial depositions
-total_steps = 1000            # total number of steps to run
+numberDepos = 35		        # number of initial depositions
+total_steps = 10000            # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -61,12 +61,12 @@ class params(object):
 
 # calculate the rate of an event given barrier height (Arrhenius eq.)
 def calc_rate(barrier):
-    rate = prefactor * np.exp(-barrier/(boltzmann*temperature))
+    rate = prefactor * math.exp(- barrier / (boltzmann * temperature))
     return rate
 
 # find barrier height given rate
 def find_barrier_height(rate):
-    barrier = -(boltzmann*temperature)*np.log(rate/prefactor)
+    barrier = round(- math.log(rate / prefactor) * (boltzmann * temperature),6)
     return barrier
 
 # read lattice header at input filename
@@ -265,7 +265,6 @@ def deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_index,natoms):
     if len(maxAg) != 3:
         for x in nlist:
             if x == 'Ag':
-            	# TODO: take out later
                 print "deposited near Ag, redo deposition"
                 return None
         if nlist[0] == 'O_':
@@ -517,15 +516,18 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
 # pick an event from an event list
 def choose_event(event_list,Time):
     # add on deposition event
-    event_list.append([depoRate,0,['Depo']])
+    event_list.append([depoRate,0,['Depo'],0])
 
     # create cumulative function
     R = []
     TotalRate = 0
     for i in xrange(len(event_list)):
         TotalRate += event_list[i][0]
-        R.append([TotalRate,event_list[i][1],event_list[i][2]])
+        R.append([TotalRate,event_list[i][1],event_list[i][2],event_list[i][3]])
     TotalRate
+
+    numEvents = len(event_list)
+
 
     # Debug
     #print R
@@ -541,15 +543,16 @@ def choose_event(event_list,Time):
             chosenRate = R[i][0]
             chosenEvent = R[i][2]
             chosenAtom = R[i][1]
+            chosenBarrier = R[i][3]
             print "Chosen event:",R[i][2],"on atom:",R[i][1]
             print "Rate:", event_list[i][0]
             break
 
     # increase time
     u = random.random()
-    Time += (np.log(1/u)/Q)*1E15
+    Time += (np.log(1/u)/TotalRate)*1E15 
 
-    return chosenRate, chosenEvent, chosenAtom, Time
+    return chosenRate, chosenEvent, chosenAtom, Time, chosenBarrier
 
 # calcuate list of atoms with graph radius of defect
 def find_volume_atoms(lattice_pos,x,y,z):
@@ -802,14 +805,13 @@ def create_events_list(full_depo_index,surface_lattice):
 
 
                 else:
-                    #TODO: does not seem to be working correctly!
                     for k in xrange(len(final_keys)):
                         if not hashkeyExists[k]:
                             result = singleNEB(directions[k],full_depo_index,surface_lattice,j,vol_key,final_keys[k],natoms)
                             if result:
                                 if result[2] != "None":
                                     rate = calc_rate(float(result[2]))
-                                    event_list.append([rate,j,directions[k]])
+                                    event_list.append([rate,j,directions[k],float(result[2])])
                     else:
                         break
         else:
@@ -868,7 +870,7 @@ def add_to_events(final_keys,hashkey,barrier,index,directions,hashkeyExists):
         if hashkey == final_keys[k]:
             if barrier != "None":
                 rate = calc_rate(float(barrier))
-                events.append([rate,index,directions[k]])
+                events.append([rate,index,directions[k],barrier])
             hashkeyExists[k] = 1
 
     return events, hashkeyExists
@@ -1378,7 +1380,7 @@ while CurrentStep < (total_steps + 1):
     print "Current Step: ", CurrentStep
 
     event_list = create_events_list(full_depo_list,surface_lattice)
-    chosenRate, chosenEvent, chosenAtom, Time = choose_event(event_list, Time)
+    chosenRate, chosenEvent, chosenAtom, Time, chosenBarrier = choose_event(event_list, Time)
 
     # do deposition
     if chosenEvent[0] == 'Depo':
@@ -1411,7 +1413,7 @@ while CurrentStep < (total_steps + 1):
         latticeNo = (CurrentStep-1)/latticeOutEvery
         print "Writing lattice: KMC", latticeNo
 
-        Barrier = find_barrier_height(chosenRate)
+        Barrier = chosenBarrier
         write_lattice(latticeNo,full_depo_list,surface_lattice,natoms,Time,Barrier)
 
 
