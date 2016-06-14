@@ -1,5 +1,5 @@
-# PredefinedKMC
-##Adam's predefined transition KMC code
+# LatAKMC
+##Adam's Lattice based Adaptive KMC code
 
 ### Requirements
 LAKMC Graphs, NEB, Lattice, Minimise, Input, Vectors modules <br>
