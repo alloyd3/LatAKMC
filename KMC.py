@@ -20,7 +20,7 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
-jobStatus = 'BEGIN'            # BEGIN or CNTIN run
+jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 35		        # number of initial depositions
 total_steps = 10000            # total number of steps to run
@@ -34,6 +34,7 @@ maxMoveCriteria = 0.6        # maximum distance an atom can move after relaxatio
 MaxHeight = 30              # Dimension of cell in y direction
 IncludeUpTrans = 0          # Booleon: Include transitions up step edges (turning off speeds up simulation)
 IncludeDownTrans = 1        # Booleon: Include transitions down step edges
+StatsOut = True                # Recieve extra information from your run
 
 
 # for (0001) ZnO only
@@ -521,8 +522,11 @@ def choose_event(event_list,Time):
     # create cumulative function
     R = []
     TotalRate = 0
-    for i in xrange(len(event_list)):
+    TotalBarrier = 0
+    num = len(event_list)
+    for i in xrange(num):
         TotalRate += event_list[i][0]
+        TotalBarrier += float(event_list[i][3])
         R.append([TotalRate,event_list[i][1],event_list[i][2],event_list[i][3]])
     TotalRate
 
@@ -550,7 +554,7 @@ def choose_event(event_list,Time):
 
     # increase time
     u = random.random()
-    Time += (np.log(1/u)/TotalRate)*1E15 
+    Time += (np.log(1/u)/TotalRate)*1E15
 
     return chosenRate, chosenEvent, chosenAtom, Time, chosenBarrier
 
@@ -1235,6 +1239,27 @@ def add_to_trans_file(hashkey,result):
 
     return
 
+# write stats to a file
+def StatsOutput(event_list,CurrentStep,numAdatoms):
+    statsFile = Stats_dir + '/Stats.txt'
+    if (os.path.isfile(statsFile)):
+        outfile = open(statsFile, 'a')
+        TotalRate = 0
+        TotalBarrier = 0
+        num = len(event_list)
+        for i in xrange(num):
+            TotalRate += float(event_list[i][0])
+            TotalBarrier += float(event_list[i][3])
+
+        AveRate = TotalRate/num
+        AveBarrier = TotalBarrier/num
+        outfile.write(str(AveRate)+'\t'+str(AveBarrier)+'\t'+str(len(event_list))+'\t'+str(numAdatoms)+'\t'+str(CurrentStep)+'\n')
+        outfile.close()
+    else:
+        print "Warning! Could not find Stats.txt"
+    return
+
+
 
 
 
@@ -1260,7 +1285,7 @@ startTimeSub = time.time()
 CurrentStep = 0
 
 print "="*80
-print "~~~~~~~~ Starting predefined transitions KMC ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+print "~~~~~~~~ Starting lattice KMC ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 print "="*80
 
 
@@ -1270,6 +1295,7 @@ output_dir_name_prefac = initial_dir + '/Output'
 Trans_dir = initial_dir + '/Transitions'
 Volumes_dir = initial_dir + '/Volumes'
 NEB_dir_name_prefac = initial_dir + '/Temp'
+Stats_dir = initial_dir + '/Stats'
 
 print " Current directory           : ", initial_dir
 print " Output directory prefactor  : ", output_dir_name_prefac
@@ -1294,6 +1320,13 @@ if not os.path.exists(NEB_dir_name_prefac):
     os.makedirs(NEB_dir_name_prefac)
 if not os.path.exists(Trans_dir):
     os.makedirs(Trans_dir)
+if StatsOut:
+    if not os.path.exists(Stats_dir):
+        os.makedirs(Stats_dir)
+    statsFile = Stats_dir + '/Stats.txt'
+    outfile = open(statsFile, 'w')
+    outfile.write('Average Rate'+'\tAverage Barrier'+'\tNo. Events'+'\tNo. Adatoms'+'\tStep'+'\n')
+    outfile.close()
 print "~"*80
 
 # read lattice header (in md_input dir)
@@ -1380,6 +1413,8 @@ while CurrentStep < (total_steps + 1):
     print "Current Step: ", CurrentStep
 
     event_list = create_events_list(full_depo_list,surface_lattice)
+    if StatsOut:
+        StatsOutput(event_list,CurrentStep,len(full_depo_list))
     chosenRate, chosenEvent, chosenAtom, Time, chosenBarrier = choose_event(event_list, Time)
 
     # do deposition
@@ -1459,12 +1494,37 @@ print "====== Finished KMC run =================================================
 print "Number of steps completed:	", (CurrentStep-1)
 print "Number of depositions:		", len(full_depo_list)
 print "="*80
-print "Predefined KMC        Copyright Adam Lloyd 2016 "
+print "Lattice KMC        Copyright Adam Lloyd 2016 "
 print "="*80
 
 # Timer
 FinalTimeSub = time.time() - startTimeSub
 print "Time: ", FinalTimeSub
+print "Average Time per step: ", FinalTimeSub/CurrentStep
+
+if StatsOut:
+    if (os.path.isfile(input_lattice_path)):
+        input_file = open(input_lattice_path, 'r')
+        # skip first line
+        line = input_file.readline()
+        AveRate = 0
+        AveBarrier = 0
+        AveEvents = 0
+        while 1:
+            line = input_file.readline()
+            if not line: break
+            #print line
+            line = line.split()
+            AveRate += float(line[0])
+            AveBarrier += float(line[1])
+            AveEvents += float(line[2])
+        input_file.close()
+        AveRate = AveRate/CurrentStep
+        AveBarrier = AveBarrier/CurrentStep
+        AveEvents = AveEvents/CurrentStep
+        print "Average Rate: ", AveRate, "\tAverage Barrier: ", AveBarrier, "Average Number of events: ", AveEvents
+
+
 
 del full_depo_list
 del surface_lattice
