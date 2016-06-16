@@ -1253,7 +1253,7 @@ def StatsOutput(event_list,CurrentStep,numAdatoms):
 
         AveRate = TotalRate/num
         AveBarrier = TotalBarrier/num
-        outfile.write(str(AveRate)+',\t'+str(AveBarrier)+',\t'+str(len(event_list))+',\t'+str(numAdatoms)+',\t'+str(CurrentStep)+'\n')
+        outfile.write(str(AveRate)+','+str(AveBarrier)+','+str(len(event_list))+','+str(numAdatoms)+','+str(CurrentStep)+'\n')
         outfile.close()
     else:
         print "Warning! Could not find Stats.txt"
@@ -1325,7 +1325,7 @@ if StatsOut:
         os.makedirs(Stats_dir)
     statsFile = Stats_dir + '/Stats.txt'
     outfile = open(statsFile, 'w')
-    outfile.write('Average Rate'+'\t Average Barrier'+'\t No. Events'+'\t No. Adatoms'+'\t Step'+'\n')
+    outfile.write('Average Rate'+', Average Barrier'+', No. Events'+', No. Adatoms'+', Step'+'\n')
     outfile.close()
 print "~"*80
 
