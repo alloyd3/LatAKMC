@@ -62,6 +62,7 @@ class params(object):
 
 class volume(object):
     def __init__(self):
+        self.hashkey = None
         self.directions = []
         self.finalKeys = {}
 
@@ -73,12 +74,14 @@ class volume(object):
             newKey = key()
             newKey.barrier = barrier
             newKey.rate = rate
+            newKey.hashkey = finalKey
             self.finalKeys[finalKey] = newKey
 
 class key(object):
     def __init__(self):
         self.barrier = None
         self.rate = None
+        self.hashkey = None
 
 # calculate the rate of an event given barrier height (Arrhenius eq.)
 def calc_rate(barrier):
@@ -776,7 +779,7 @@ def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
         return None
 
 # create the list of possible events
-def create_events_list(full_depo_index,surface_lattice):
+def create_events_list(full_depo_index,surface_lattice, volumes):
 
     event_list = []
     adatom_positions = []
@@ -821,6 +824,7 @@ def create_events_list(full_depo_index,surface_lattice):
 
         try:
             vol = volumes[vol_key]
+            vol.hashkey = vol_key
             for direc in vol.directions:
                 dis_x = float(direc[0])*x_grid_dist
                 dis_y = float(direc[1])*y_grid_dist
@@ -833,6 +837,7 @@ def create_events_list(full_depo_index,surface_lattice):
 
                 try:
                     trans = vol.finalKey[final_key]
+                    trans.hashkey = final_key
                     event_list.append([trans.rate,j,dir_vector,trans.barrier])
                 except KeyError:
                     result = singleNEB(dir_vector,full_depo_index,surface_lattice,j,vol_key,final_key,natoms)
@@ -844,14 +849,15 @@ def create_events_list(full_depo_index,surface_lattice):
 
         except KeyError:
             vol = volume()
-
-            print "Cannot find volume transitions. Doing searches ", vol_key
+            vol.hashkey = vol_key
+            print "Cannot find volume transitions. Doing searches now ", vol_key
             # do searches on volume and save to new trans file
-            status, result = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms,vol)
+            status, result, vol = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms,vol)
             if status:
                 break
             else:
                 event_list = event_list + result
+                volumes[vol_key] = vol
 
         # # read in trans file
         # if (os.path.isfile(trans_file)):
@@ -942,7 +948,7 @@ def create_events_list(full_depo_index,surface_lattice):
     del lattice_positions
     del adatom_positions
 
-    return event_list
+    return event_list, volumes
 
 # check if event exists
 def add_to_events(final_keys,hashkey,barrier,index,directions,hashkeyExists):
@@ -1094,7 +1100,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
         if results:
             print results
             #write_trans_file(hashkey,results)
-            return 0, results;
+            return 0, results, vol;
     else:
         print "WARNING: maxMove too large in initial lattice"
         sys.exit()
@@ -1103,7 +1109,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
     del fin, finMin
     del Sep
 
-    return 1, results;
+    return 1, results, vol;
 
 # do a single NEB and add transition to trans files
 def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final_key,natoms):
@@ -1323,6 +1329,23 @@ def add_to_trans_file(hashkey,result):
 
     return
 
+# write out all volumes and transitions to a file
+def writeVolumes(volumes):
+    volfile = initial_dir + '/Volumes.txt'
+
+    out = open(volfile, 'w')
+    for i, vol in enumerate(volumes):
+        print "vol:", vol
+        numDir = len(volumes[vol].directions)
+        numTrans = len(volumes[vol].finalKeys)
+        out.write(str(vol)+'\t'+str(numDir)+'\t'+str(numTrans)+'\n')
+        for j in range(numDir):
+            direc = volumes[vol].directions[j]
+            out.write(str(direc[0])+'\t'+str(direc[1])+'\t'+str(direc[2])+'\n')
+        for j, trans in enumerate(volumes[vol].finalKeys):
+            out.write(str(trans)+'\t'+str(volumes[vol].finalKeys[trans].barrier)+'\t'+str(volumes[vol].finalKeys[trans].rate)+'\n')
+    return
+
 # write stats to a file
 def StatsOutput(event_list,CurrentStep,numAdatoms):
     statsFile = Stats_dir + '/Stats.txt'
@@ -1499,7 +1522,8 @@ while CurrentStep < (total_steps + 1):
     # TODO: include a verbosity level
     print "Current Step: ", CurrentStep
 
-    event_list = create_events_list(full_depo_list,surface_lattice)
+    event_list, volumes = create_events_list(full_depo_list,surface_lattice, volumes)
+    writeVolumes(volumes)
     # if StatsOut:
     #     StatsOutput(event_list,CurrentStep,len(full_depo_list))
     chosenRate, chosenEvent, chosenAtom, Time, chosenBarrier = choose_event(event_list, Time)
