@@ -20,10 +20,10 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
-jobStatus = 'CNTIN'            # BEGIN or CNTIN run
+jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 35		        # number of initial depositions
-total_steps = 10000            # total number of steps to run
+numberDepos = 1		        # number of initial depositions
+total_steps = 2            # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -539,6 +539,9 @@ def choose_event(event_list,Time):
     # add on deposition event
     event_list.append([depoRate,0,['Depo'],0])
 
+    print "Choose event from event list:"
+    print event_list
+
     # create cumulative function
     R = []
     TotalRate = 0
@@ -844,10 +847,11 @@ def create_events_list(full_depo_index,surface_lattice):
 
             print "Cannot find volume transitions. Doing searches ", vol_key
             # do searches on volume and save to new trans file
-            status = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms,vol)
+            status, result = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms,vol)
             if status:
                 break
-
+            else:
+                event_list = event_list + result
 
         # # read in trans file
         # if (os.path.isfile(trans_file)):
@@ -955,7 +959,7 @@ def add_to_events(final_keys,hashkey,barrier,index,directions,hashkeyExists):
 
 
 # run NEB to find barriers that are not known
-def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
+def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
     print "AUTO NEB", "="*60
 
     barrier = []
@@ -1053,7 +1057,8 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                 if maxMove < 0.4:
                     print " difference between ini and fin is too small:", maxMove
                     barrier = str("None")
-                    results.append([dir_vector[i], final_key, barrier])
+                    results.append([str("None"),atom_index, dir_vector, barrier])
+                    vol.addTrans(dir_vector[i], final_key, barrier, str("None"))
                     continue
 
                 # check max movement
@@ -1068,23 +1073,28 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
                         print "Try changing parameters in lkmcInput.IN"
                         barrier = str("None")
 
-                        results.append([dir_vector[i], final_key, barrier])
+                        results.append([str("None"),atom_index, dir_vector, barrier])
+                        vol.addTrans(dir_vector[i], final_key, barrier, str("None"))
                         continue
 
                     neb.barrier = round(neb.barrier,6)
 
                     # find final hashkey
                     final_key = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
-                    results.append([dir_vector[i], final_key, neb.barrier])
+                    rate = calc_rate(neb.barrier)
+                    results.append([rate, atom_index, dir_vector[i], neb.barrier])
+                    vol.addTrans(dir_vector[i], final_key, neb.barrier, rate)
+
                 else:
                     print "WARNING: maxMove too large in final lattice:", maxMove
                     barrier = str("None")
-                    results.append([dir_vector[i], final_key, barrier])
+                    results.append([str("None"),atom_index, dir_vector, barrier])
+                    vol.addTrans(dir_vector[i], final_key, barrier, str("None"))
 
         if results:
             print results
-            write_trans_file(hashkey,results)
-            return 0;
+            #write_trans_file(hashkey,results)
+            return 0, results;
     else:
         print "WARNING: maxMove too large in initial lattice"
         sys.exit()
@@ -1093,7 +1103,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms):
     del fin, finMin
     del Sep
 
-    return 1;
+    return 1, results;
 
 # do a single NEB and add transition to trans files
 def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final_key,natoms):
@@ -1490,8 +1500,8 @@ while CurrentStep < (total_steps + 1):
     print "Current Step: ", CurrentStep
 
     event_list = create_events_list(full_depo_list,surface_lattice)
-    if StatsOut:
-        StatsOutput(event_list,CurrentStep,len(full_depo_list))
+    # if StatsOut:
+    #     StatsOutput(event_list,CurrentStep,len(full_depo_list))
     chosenRate, chosenEvent, chosenAtom, Time, chosenBarrier = choose_event(event_list, Time)
 
     # do deposition
