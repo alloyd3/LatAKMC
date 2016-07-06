@@ -60,6 +60,26 @@ class params(object):
     def __init__(self):
         self.graphRadius = 5.9
 
+class volume(object):
+    def __init__(self):
+        self.directions = []
+        self.finalKeys = {}
+
+    def addTrans(self, direction, finalKey, barrier, rate):
+        if direction not in self.directions:
+            self.directions.append(direction)
+
+        if finalKey not in self.finalKeys:
+            newKey = key()
+            newKey.barrier = barrier
+            newKey.rate = rate
+            self.finalKeys[finalKey] = newKey
+
+class key(object):
+    def __init__(self):
+        self.barrier = None
+        self.rate = None
+
 # calculate the rate of an event given barrier height (Arrhenius eq.)
 def calc_rate(barrier):
     rate = prefactor * math.exp(- barrier / (boltzmann * temperature))
@@ -655,24 +675,45 @@ def TransformMatrix(hashkey,volumeAtoms,Lattice1,lattice_positions):
 
     #TODO: round instead of +- 0.05
     # compare to x and z grid distances to find direction after rotation
-    if comparex-0.05 < result[0] < comparex+0.05:
-        if comparez-0.05 < result[2] < comparez+0.05:
+    # if comparex-0.05 < result[0] < comparex+0.05:
+    #     if comparez-0.05 < result[2] < comparez+0.05:
+    #         initial_direction = 3
+    #     if -comparez-0.05 < result[2] < -comparez+0.05:
+    #         initial_direction = 1
+    # elif -comparex-0.05 < result[0] < -comparex+0.05:
+    #     if comparez-0.05 < result[2] < comparez+0.05:
+    #         initial_direction = 4
+    #     if -comparez-0.05 < result[2] < -comparez+0.05:
+    #         initial_direction = 2
+    # elif -2*comparex-0.1 < result[0] < -2*comparex+0.1:
+    #     initial_direction = 5
+    # elif 2*comparex-0.1 < result[0] < 2*comparex+0.1:
+    #     initial_direction = 0
+    # else:
+    #     print "Error in initial direction method"
+    #     sys.exit()
+
+    # TODO: This is not needed anymore?
+    # compare to x and z grid distances to find direction after rotation
+    if round(result[0]-comparex,2) == 0:
+        if round(result[2]-comparez,2) == 0:
             initial_direction = 3
-        if -comparez-0.05 < result[2] < -comparez+0.05:
+        elif round(result[2]+comparez,2) == 0:
             initial_direction = 1
-    elif -comparex-0.05 < result[0] < -comparex+0.05:
-        if comparez-0.05 < result[2] < comparez+0.05:
+    elif round(result[0]+comparex,2) == 0:
+        if round(result[2]-comparez,2) == 0:
             initial_direction = 4
-        if -comparez-0.05 < result[2] < -comparez+0.05:
+        elif round(result[2]+comparez,2) == 0:
             initial_direction = 2
-    elif -2*comparex-0.1 < result[0] < -2*comparex+0.1:
+    elif round(result[0]+2*comparex,2) == 0:
         initial_direction = 5
-    elif 2*comparex-0.1 < result[0] < 2*comparex+0.1:
+    elif round(result[0]-2*comparex,2) == 0:
         initial_direction = 0
     else:
-        print "Error in initital direction method"
+        print "Error in initial direction method"
+        print "x grid dist: ", comparex,"result: ", result[0]
+        print "z grid dist: ", comparez,"result: ", result[2]
         sys.exit()
-
 
     return trnsfMatrix
 
@@ -775,90 +816,123 @@ def create_events_list(full_depo_index,surface_lattice):
 
         trans_file = trans_dir + str(vol_key)+'.txt'
 
-        # read in trans file
-        if (os.path.isfile(trans_file)):
-            input_file = open(trans_file, 'r')
-            # skip first line
-            while 1:
-                latline = input_file.readline()
-                barriers = latline.split()
-                if len(barriers) > 1:
-                    if len(barriers) == 3:
-                        # multiply vector by transformation matrix
-                        dis_x = float(barriers[0])*x_grid_dist
-                        dis_y = float(barriers[1])*y_grid_dist
-                        dis_z = float(barriers[2])*z_grid_dist
-                        dir_vector = np.dot(trnsfMatrix,[dis_x,dis_y,dis_z])
-                        dir_vector[0] = int(round(dir_vector[0]/x_grid_dist))
-                        dir_vector[1] = int(round(dir_vector[1]/y_grid_dist))
-                        dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
-                        # find final hashkeys and save
-                        final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
+        try:
+            vol = volumes[vol_key]
+            for direc in vol.directions:
+                dis_x = float(direc[0])*x_grid_dist
+                dis_y = float(direc[1])*y_grid_dist
+                dis_z = float(direc[2])*z_grid_dist
+                dir_vector = np.dot(trnsfMatrix,[dis_x,dis_y,dis_z])
+                dir_vector[0] = int(round(dir_vector[0]/x_grid_dist))
+                dir_vector[1] = int(round(dir_vector[1]/y_grid_dist))
+                dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
+                final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
 
-                        if final_key:
-                            final_keys.append(final_key)
-                            directions.append(dir_vector)
-                            hashkeyExists.append(0)
-
-                    if len(barriers) == 2:
-                        # compare final hashkey to trans file
-                        events = 0
-                        events, hashkeyExists = add_to_events(final_keys,barriers[0],barriers[1],j,directions,hashkeyExists)
-                        if events:
-                            event_list = event_list + events
+                try:
+                    trans = vol.finalKey[final_key]
+                    event_list.append([trans.rate,j,dir_vector,trans.barrier])
+                except KeyError:
+                    result = singleNEB(dir_vector,full_depo_index,surface_lattice,j,vol_key,final_key,natoms)
+                    if result:
+                        if result[2] != "None":
+                            rate = calc_rate(float(result[2]))
+                            event_list.append([rate,j,directions[k],float(result[2])])
 
 
-                else:
-                    for k in xrange(len(final_keys)):
-                        if not hashkeyExists[k]:
-                            result = singleNEB(directions[k],full_depo_index,surface_lattice,j,vol_key,final_keys[k],natoms)
-                            if result:
-                                if result[2] != "None":
-                                    rate = calc_rate(float(result[2]))
-                                    event_list.append([rate,j,directions[k],float(result[2])])
-                    else:
-                        break
-        else:
-            print "WARNING: Cannot find transitions file. Do searches ", vol_key
+        except KeyError:
+            vol = volume()
+
+            print "Cannot find volume transitions. Doing searches ", vol_key
             # do searches on volume and save to new trans file
-            status = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms)
+            status = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms,vol)
             if status:
                 break
-            input_file = open(trans_file, 'r')
-            # skip first line
-            while 1:
-                latline = input_file.readline()
-                barriers = latline.split()
-                if len(barriers) > 1:
-                    if len(barriers) == 3:
-                        # multiply vector by transformation matrix
-                        dis_x = float(barriers[0])*x_grid_dist
-                        dis_y = float(barriers[1])*y_grid_dist
-                        dis_z = float(barriers[2])*z_grid_dist
-                        dir_vector = np.dot(trnsfMatrix,[dis_x,dis_y,dis_z])
-                        dir_vector[0] = int(round(dir_vector[0]/x_grid_dist))
-                        dir_vector[1] = int(round(dir_vector[1]/y_grid_dist))
-                        dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
-                        # find final hashkeys and save
-                        final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
-                        final_keys.append(final_key)
-                        directions.append(dir_vector)
-                        hashkeyExists.append(0)
 
-                    if len(barriers) == 2:
 
-                        # compare final hashkey to trans file
-                        events, hashkeyExists = add_to_events(final_keys,barriers[0],barriers[1],j,directions, hashkeyExists)
-                        if events:
-                            event_list = event_list + events
-
-                else:
-                    if hashkeyExists == None:
-                        print "WARNING: Final Hashkey not found, more info needed"
-                        sys.exit()
-                    else:
-                        break
-        input_file.close()
+        # # read in trans file
+        # if (os.path.isfile(trans_file)):
+        #     input_file = open(trans_file, 'r')
+        #     # skip first line
+        #     while 1:
+        #         latline = input_file.readline()
+        #         barriers = latline.split()
+        #         if len(barriers) > 1:
+        #             if len(barriers) == 3:
+        #                 # multiply vector by transformation matrix
+        #                 dis_x = float(barriers[0])*x_grid_dist
+        #                 dis_y = float(barriers[1])*y_grid_dist
+        #                 dis_z = float(barriers[2])*z_grid_dist
+        #                 dir_vector = np.dot(trnsfMatrix,[dis_x,dis_y,dis_z])
+        #                 dir_vector[0] = int(round(dir_vector[0]/x_grid_dist))
+        #                 dir_vector[1] = int(round(dir_vector[1]/y_grid_dist))
+        #                 dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
+        #                 # find final hashkeys and save
+        #                 final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
+        #
+        #                 if final_key:
+        #                     final_keys.append(final_key)
+        #                     directions.append(dir_vector)
+        #                     hashkeyExists.append(0)
+        #
+        #             if len(barriers) == 2:
+        #                 # compare final hashkey to trans file
+        #                 events = 0
+        #                 events, hashkeyExists = add_to_events(final_keys,barriers[0],barriers[1],j,directions,hashkeyExists)
+        #                 if events:
+        #                     event_list = event_list + events
+        #
+        #
+        #         else:
+        #             for k in xrange(len(final_keys)):
+        #                 if not hashkeyExists[k]:
+        #                     result = singleNEB(directions[k],full_depo_index,surface_lattice,j,vol_key,final_keys[k],natoms)
+        #                     if result:
+        #                         if result[2] != "None":
+        #                             rate = calc_rate(float(result[2]))
+        #                             event_list.append([rate,j,directions[k],float(result[2])])
+        #             else:
+        #                 break
+        # else:
+        #     print "WARNING: Cannot find transitions file. Do searches ", vol_key
+        #     # do searches on volume and save to new trans file
+        #     status = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms)
+        #     if status:
+        #         break
+        #     input_file = open(trans_file, 'r')
+        #     # skip first line
+        #     while 1:
+        #         latline = input_file.readline()
+        #         barriers = latline.split()
+        #         if len(barriers) > 1:
+        #             if len(barriers) == 3:
+        #                 # multiply vector by transformation matrix
+        #                 dis_x = float(barriers[0])*x_grid_dist
+        #                 dis_y = float(barriers[1])*y_grid_dist
+        #                 dis_z = float(barriers[2])*z_grid_dist
+        #                 dir_vector = np.dot(trnsfMatrix,[dis_x,dis_y,dis_z])
+        #                 dir_vector[0] = int(round(dir_vector[0]/x_grid_dist))
+        #                 dir_vector[1] = int(round(dir_vector[1]/y_grid_dist))
+        #                 dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
+        #                 # find final hashkeys and save
+        #                 final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
+        #                 final_keys.append(final_key)
+        #                 directions.append(dir_vector)
+        #                 hashkeyExists.append(0)
+        #
+        #             if len(barriers) == 2:
+        #
+        #                 # compare final hashkey to trans file
+        #                 events, hashkeyExists = add_to_events(final_keys,barriers[0],barriers[1],j,directions, hashkeyExists)
+        #                 if events:
+        #                     event_list = event_list + events
+        #
+        #         else:
+        #             if hashkeyExists == None:
+        #                 print "WARNING: Final Hashkey not found, more info needed"
+        #                 sys.exit()
+        #             else:
+        #                 break
+        # input_file.close()
         del volumeAtoms
 
     del lattice_positions
@@ -1265,6 +1339,8 @@ def StatsOutput(event_list,CurrentStep,numAdatoms):
 
 
 
+
+
 # ============================================================================
 # ============================================================================
 # ============================================================================
@@ -1283,6 +1359,7 @@ surface_specie= []
 surface_positions = []
 startTimeSub = time.time()
 CurrentStep = 0
+volumes = {}
 
 print "="*80
 print "~~~~~~~~ Starting lattice KMC ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
