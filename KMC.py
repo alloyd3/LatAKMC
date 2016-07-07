@@ -74,14 +74,14 @@ class volume(object):
             newKey = key()
             newKey.barrier = barrier
             newKey.rate = rate
-            newKey.hashkey = finalKey
+            # newKey.hashkey = finalKey
             self.finalKeys[finalKey] = newKey
 
 class key(object):
     def __init__(self):
         self.barrier = None
         self.rate = None
-        self.hashkey = None
+        # self.hashkey = None
 
 # calculate the rate of an event given barrier height (Arrhenius eq.)
 def calc_rate(barrier):
@@ -824,7 +824,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
 
         try:
             vol = volumes[vol_key]
-            vol.hashkey = vol_key
+            # vol.hashkey = vol_key
             for direc in vol.directions:
                 dis_x = float(direc[0])*x_grid_dist
                 dis_y = float(direc[1])*y_grid_dist
@@ -836,11 +836,11 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                 final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
 
                 try:
-                    trans = vol.finalKey[final_key]
-                    trans.hashkey = final_key
+                    trans = vol.finalKeys[final_key]
+                    # trans.hashkey = final_key
                     event_list.append([trans.rate,j,dir_vector,trans.barrier])
                 except KeyError:
-                    result = singleNEB(dir_vector,full_depo_index,surface_lattice,j,vol_key,final_key,natoms)
+                    result, vol = singleNEB(dir_vector,full_depo_index,surface_lattice,j,vol_key,final_key,natoms,vol)
                     if result:
                         if result[2] != "None":
                             rate = calc_rate(float(result[2]))
@@ -1112,7 +1112,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
     return 1, results, vol;
 
 # do a single NEB and add transition to trans files
-def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final_key,natoms):
+def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final_key,natoms, vol):
     print "SINGLE NEB", "="*60
 
     barrier = []
@@ -1161,8 +1161,9 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 results[0] = map(int,results[0])
                 del ini, iniMin
                 del fin, finMin
-                add_to_trans_file(hashkey,results)
-                return results
+                vol.addTrans(results[0], final_key, barrier, str("None"))
+                # add_to_trans_file(hashkey,results)
+                return results, vol
 
             # minimise lattice
 
@@ -1175,8 +1176,9 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 results[0] = map(int,results[0])
                 del ini, iniMin
                 del fin, finMin
-                add_to_trans_file(hashkey,results)
-                return results
+                vol.addTrans(results[0], final_key, barrier, str("None"))
+                # add_to_trans_file(hashkey,results)
+                return results, vol
 
             # check max movement
             Index, maxMove, avgMove, Sep = Vectors.maxMovement(fin.pos, finMin.pos, cellDims)
@@ -1193,14 +1195,17 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                     results[0] = map(int,results[0])
                     del ini, iniMin
                     del fin, finMin
-                    add_to_trans_file(hashkey,results)
-                    return results
+                    vol.addTrans(results[0], final_key, barrier, str("None"))
+                    #add_to_trans_file(hashkey,results)
+                    return results, vol
 
                 print neb.barrier
                 barrier = round(neb.barrier,6)
 
                 results = [direction, final_key, barrier]
                 results[0] = map(int,results[0])
+                rate = calc_rate(barrier)
+                vol.addTrans(results[0], final_key, barrier, rate)
                 print direction
             else:
                 print "WARNING: maxMove too large in final lattice"
@@ -1209,8 +1214,9 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 results[0] = map(int,results[0])
                 del ini, iniMin
                 del fin, finMin
-                add_to_trans_file(hashkey,results)
-                return results
+                vol.addTrans(direction, final_key, barrier, str("None"))
+                #add_to_trans_file(hashkey,results)
+                return results, vol
         else:
             print "WARNING: move atom failed"
             barrier = str("None")
@@ -1218,11 +1224,12 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
             results[0] = map(int,results[0])
             del ini, iniMin
             del fin, finMin
-            add_to_trans_file(hashkey,results)
-            return results
+            vol.addTrans(direction, final_key, barrier, str("None"))
+            #add_to_trans_file(hashkey,results)
+            return results, vol
 
-        if results:
-            add_to_trans_file(hashkey,results)
+        # if results:
+        #     add_to_trans_file(hashkey,results)
     else:
         print "WARNING: maxMove too large in initial lattice"
         sys.exit()
@@ -1231,7 +1238,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
     del fin, finMin
     del Sep
     print "Finished SINGlE NEB", "="*60
-    return results
+    return results, vol
 
 # after autoNEB, create new transition file with results
 def write_trans_file(hashkey,results):
@@ -1345,6 +1352,37 @@ def writeVolumes(volumes):
         for j, trans in enumerate(volumes[vol].finalKeys):
             out.write(str(trans)+'\t'+str(volumes[vol].finalKeys[trans].barrier)+'\t'+str(volumes[vol].finalKeys[trans].rate)+'\n')
     return
+
+# read volumes from file
+def readVolumes(volumes):
+    volPath = initial_dir + '/Volumes.txt'
+    if (os.path.isfile(volPath)):
+        input_file = open(volPath, 'r')
+        while 1:
+            latline = input_file.readline()
+            line = latline.split()
+            if len(line) < 3:
+                break
+            key = str(line[0])
+            numDir = int(line[1])
+            numTrans = int(line[2])
+            vol = volume()
+            for i in range(numDir):
+                latline = input_file.readline()
+                line = latline.split()
+                if len(line) < 3:
+                    break
+                direc = [int(line[0]),int(line[1]),int(line[2])]
+                vol.directions.append(direc)
+            for i in range(numTrans):
+                latline = input_file.readline()
+                line = latline.split()
+                if len(line) < 3:
+                    break
+                vol.addTrans(direc, str(line[0]), float(line[1]), float(line[2]))
+            volumes[key]=vol
+
+    return volumes
 
 # write stats to a file
 def StatsOutput(event_list,CurrentStep,numAdatoms):
@@ -1460,6 +1498,7 @@ for i in xrange(len(surface_lattice)):
 # set up temp initial and final lattices.dat
 params = Input.getLKMCParams(1, "", "lkmcInput.IN")
 Input.readGlobals("lkmcInput.IN")
+volumes = readVolumes(volumes)
 
 # check if continue or begin run
 if jobStatus == 'CNTIN':
