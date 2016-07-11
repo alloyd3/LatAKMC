@@ -22,8 +22,8 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 #- User inputs hard coded in script
 jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 1		        # number of initial depositions
-total_steps = 2            # total number of steps to run
+numberDepos = 2		        # number of initial depositions
+total_steps = 250            # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -542,8 +542,8 @@ def choose_event(event_list,Time):
     # add on deposition event
     event_list.append([depoRate,0,['Depo'],0])
 
-    print "Choose event from event list:"
-    print event_list
+    # print "Choose event from event list:"
+    # print event_list
 
     # create cumulative function
     R = []
@@ -844,7 +844,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                     if result:
                         if result[2] != "None":
                             rate = calc_rate(float(result[2]))
-                            event_list.append([rate,j,directions[k],float(result[2])])
+                            event_list.append([rate,j,dir_vector,float(result[2])])
 
 
         except KeyError:
@@ -1342,7 +1342,7 @@ def writeVolumes(volumes):
 
     out = open(volfile, 'w')
     for i, vol in enumerate(volumes):
-        print "vol:", vol
+        # print "vol:", vol
         numDir = len(volumes[vol].directions)
         numTrans = len(volumes[vol].finalKeys)
         out.write(str(vol)+'\t'+str(numDir)+'\t'+str(numTrans)+'\n')
@@ -1379,7 +1379,10 @@ def readVolumes(volumes):
                 line = latline.split()
                 if len(line) < 3:
                     break
-                vol.addTrans(direc, str(line[0]), float(line[1]), float(line[2]))
+                if line[1]!= "None":
+                    vol.addTrans(direc, str(line[0]), float(line[1]), float(line[2]))
+                else:
+                    vol.addTrans(direc, str(line[0]), str(line[1]), float(0.0))
             volumes[key]=vol
 
     return volumes
@@ -1477,7 +1480,7 @@ if StatsOut:
     outfile.close()
 print "~"*80
 
-# read lattice header (in md_input dir)
+# read lattice header
 natoms,box_x,box_y,box_z = read_lattice_header(input_lattice_path)
 print "Initial atoms  : ",natoms
 print "Lattice size: ",box_x,box_y,box_z, " Angstroms"
@@ -1499,6 +1502,18 @@ for i in xrange(len(surface_lattice)):
 params = Input.getLKMCParams(1, "", "lkmcInput.IN")
 Input.readGlobals("lkmcInput.IN")
 volumes = readVolumes(volumes)
+
+# find size of grid_size
+x_grid_points, y_grid_points, z_grid_points, box_x, box_z = grid_size(box_x,initial_surface_height,box_z)
+print "grid size: %d * %d * %d" % (x_grid_points,y_grid_points,z_grid_points)
+if (x_grid_points%6):
+    print " WARNING WARNING: x grid points must be a multiple of 6 for PBC to work"
+    sys.exit()
+if (z_grid_points%2):
+    print " WARNING WARNING: z grid points must be a multiple of 2 for PBC to work"
+    sys.exit()
+print "New lattice size: ",box_x,box_y,box_z, " Angstroms"
+print "-" * 80
 
 # check if continue or begin run
 if jobStatus == 'CNTIN':
@@ -1527,18 +1542,6 @@ if jobStatus == 'CNTIN':
             break
         num += 1
 
-# find size of grid_size
-x_grid_points, y_grid_points, z_grid_points, box_x, box_z = grid_size(box_x,initial_surface_height,box_z)
-print "grid size: %d * %d * %d" % (x_grid_points,y_grid_points,z_grid_points)
-if (x_grid_points%6):
-    print " WARNING WARNING: x grid points must be a multiple of 6 for PBC to work"
-    sys.exit()
-if (z_grid_points%2):
-    print " WARNING WARNING: z grid points must be a multiple of 2 for PBC to work"
-    sys.exit()
-print "New lattice size: ",box_x,box_y,box_z, " Angstroms"
-print "-" * 80
-
 # do initial consecutive depositions
 while CurrentStep < (numberDepos):
     print "Current Step: ", CurrentStep
@@ -1562,9 +1565,16 @@ while CurrentStep < (total_steps + 1):
     print "Current Step: ", CurrentStep
 
     event_list, volumes = create_events_list(full_depo_list,surface_lattice, volumes)
-    writeVolumes(volumes)
-    # if StatsOut:
-    #     StatsOutput(event_list,CurrentStep,len(full_depo_list))
+
+    # write out volumes file
+    if CurrentStep%latticeOutEvery == 0 or CurrentStep == total_steps:
+        writeVolumes(volumes)
+
+    # write out stats
+    if StatsOut:
+        StatsOutput(event_list,CurrentStep,len(full_depo_list))
+
+    # choose event
     chosenRate, chosenEvent, chosenAtom, Time, chosenBarrier = choose_event(event_list, Time)
 
     # do deposition
@@ -1644,7 +1654,7 @@ print "====== Finished KMC run =================================================
 print "Number of steps completed:	", (CurrentStep-1)
 print "Number of depositions:		", len(full_depo_list)
 print "="*80
-print "Lattice KMC        Copyright Adam Lloyd 2016 "
+print "Lattice KMC        Copyright (c) Adam Lloyd 2016 "
 print "="*80
 
 # Timer
@@ -1664,7 +1674,7 @@ if StatsOut:
             line = input_file.readline()
             if not line: break
             #print line
-            line = line.split()
+            line = line.split(',')
             AveRate += float(line[0])
             AveBarrier += float(line[1])
             AveEvents += float(line[2])
