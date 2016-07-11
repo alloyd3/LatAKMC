@@ -551,9 +551,10 @@ def choose_event(event_list,Time):
     TotalBarrier = 0
     num = len(event_list)
     for i in xrange(num):
-        TotalRate += event_list[i][0]
-        TotalBarrier += float(event_list[i][3])
-        R.append([TotalRate,event_list[i][1],event_list[i][2],event_list[i][3]])
+        if event_list[i][0] > 0:
+            TotalRate += event_list[i][0]
+            TotalBarrier += float(event_list[i][3])
+            R.append([TotalRate,event_list[i][1],event_list[i][2],event_list[i][3]])
     TotalRate
 
     numEvents = len(event_list)
@@ -575,7 +576,7 @@ def choose_event(event_list,Time):
             chosenAtom = R[i][1]
             chosenBarrier = R[i][3]
             print "Chosen event:",R[i][2],"on atom:",R[i][1]
-            print "Rate:", event_list[i][0]
+            print "Rate:", R[i][2]
             break
 
     # increase time
@@ -1397,7 +1398,8 @@ def StatsOutput(event_list,CurrentStep,numAdatoms):
         num = len(event_list)
         for i in xrange(num):
             TotalRate += float(event_list[i][0])
-            TotalBarrier += float(event_list[i][3])
+            if event_list[i][3] != None:
+                TotalBarrier += float(event_list[i][3])
 
         AveRate = TotalRate/num
         AveBarrier = TotalBarrier/num
