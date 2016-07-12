@@ -22,8 +22,8 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 #- User inputs hard coded in script
 jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 2		        # number of initial depositions
-total_steps = 250            # total number of steps to run
+numberDepos = 1		        # number of initial depositions
+total_steps = 5           # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -65,6 +65,9 @@ class volume(object):
         self.hashkey = None
         self.directions = []
         self.finalKeys = {}
+        self.pos = []
+        self.specie = []
+        self.volumeAtoms = []
 
     def addTrans(self, direction, finalKey, barrier, rate):
         if direction not in self.directions:
@@ -76,6 +79,16 @@ class volume(object):
             newKey.rate = rate
             # newKey.hashkey = finalKey
             self.finalKeys[finalKey] = newKey
+
+    # store new volume atoms in memory
+    def addVolumeAtoms(self, volumeAtoms,lattice_positions,specie_list):
+        if len(self.volumeAtoms) < 1:
+            for i in xrange(len(lattice_positions)):
+                self.pos.append(lattice_positions[i])
+            for i in xrange(len(specie_list)):
+                self.specie.append(specie_list[i])
+            for i in xrange(len(volumeAtoms)):
+                self.volumeAtoms.append(volumeAtoms)
 
 class key(object):
     def __init__(self):
@@ -576,7 +589,7 @@ def choose_event(event_list,Time):
             chosenAtom = R[i][1]
             chosenBarrier = R[i][3]
             print "Chosen event:",R[i][2],"on atom:",R[i][1]
-            print "Rate:", R[i][2]
+            print "Rate:", R[i][0]
             break
 
     # increase time
@@ -601,7 +614,24 @@ def find_volume_atoms(lattice_pos,x,y,z):
 def hashkey(lattice_positions,specie_list,volumeAtoms):
     # set up parameters for hashkey calculation
 
-    lattice.pos = np.asarray(lattice_positions,dtype=np.float64)
+    #lattice.pos = np.asarray(lattice_positions,dtype=np.float64)
+    lattice.pos = []
+    species = []
+    for i in volumeAtoms:
+        lattice.pos.append(lattice_positions[3*i])
+        lattice.pos.append(lattice_positions[3*i+1])
+        lattice.pos.append(lattice_positions[3*i+2])
+        species.append(specie_list[i])
+    lattice.pos = np.asarray(lattice.pos,dtype=np.float64)
+
+    for i in xrange(len(species)):
+        if species[i] == 'O_':
+            species[i] = 0
+        elif species[i] == 'Zn':
+            species[i] = 1
+        elif species[i] == 'Ag':
+            species[i] = 2
+
     for i in xrange(len(specie_list)):
         if specie_list[i] == 'O_':
             specie_list[i] = 0
@@ -613,12 +643,12 @@ def hashkey(lattice_positions,specie_list,volumeAtoms):
         #     specie_list[i] = 3
 
     # set lattice object values for hashkey
-    lattice.specie = np.asarray(specie_list,np.int32)
+    lattice.specie = np.asarray(species,np.int32)
     lattice.cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
     lattice.specieList = np.asarray(['O_','Zn','Ag'],dtype=np.character)
     lattice.pos = np.around(lattice.pos,decimals = 5)
 
-    volumeAtoms = np.asarray(volumeAtoms,dtype=np.int32)
+    volumeAtoms = np.arange(len(volumeAtoms),dtype=np.int32)
 
     params.graphRadius = graphRad
 
@@ -636,29 +666,44 @@ def TransformMatrix(hashkey,volumeAtoms,Lattice1,lattice_positions):
     #Lattice1 = lattice()
     Lattice2 = lattice()
 
-    # read in lattice from file to compare
-    VolumeFile = Volumes_dir + '/'+str(hashkey)+'.txt'
-    if (os.path.isfile(VolumeFile)):
-        input_file = open(VolumeFile, 'r')
-        line = input_file.readline()
-        LatLength = int(line)
-        for i in xrange(LatLength):
-            latline = input_file.readline()
-            lat = latline.split()
-            lattice2_species.append(lat[0])
-            lattice2_positions.append(lat[1])
-            lattice2_positions.append(lat[2])
-            lattice2_positions.append(lat[3])
-        # save positions to a lattice object
+    # # read in lattice from file to compare
+    # VolumeFile = Volumes_dir + '/'+str(hashkey)+'.txt'
+    # if (os.path.isfile(VolumeFile)):
+    #     input_file = open(VolumeFile, 'r')
+    #     line = input_file.readline()
+    #     LatLength = int(line)
+    #     for i in xrange(LatLength):
+    #         latline = input_file.readline()
+    #         lat = latline.split()
+    #         lattice2_species.append(lat[0])
+    #         lattice2_positions.append(lat[1])
+    #         lattice2_positions.append(lat[2])
+    #         lattice2_positions.append(lat[3])
+    #     # save positions to a lattice object
+    #     Lattice2.specie = np.asarray(lattice2_species,np.int32)
+    #     Lattice2.pos = np.asarray(lattice2_positions,dtype=np.float64)
+    #     for j in xrange(len(volumeAtoms)):
+    #         volline = input_file.readline()
+    #         volume2Atoms.append(int(volline))
+    #     volume2Atoms = np.asarray(volume2Atoms,dtype=np.int32)
+    #     #print volume2Atoms
+    # else:
+    #     sys.exit()
+    try:
+        vol = volumes[hashkey]
+        for i in xrange(len(vol.specie)):
+            lattice2_species.append(vol.specie[i])
+            lattice2_positions.append(vol.pos[3*i])
+            lattice2_positions.append(vol.pos[3*i+1])
+            lattice2_positions.append(vol.pos[3*i+2])
         Lattice2.specie = np.asarray(lattice2_species,np.int32)
         Lattice2.pos = np.asarray(lattice2_positions,dtype=np.float64)
-        for j in xrange(len(volumeAtoms)):
-            volline = input_file.readline()
-            volume2Atoms.append(int(volline))
-        volume2Atoms = np.asarray(volume2Atoms,dtype=np.int32)
-        #print volume2Atoms
-    else:
+        volume2Atoms = np.arange(len(vol.specie),dtype=np.int32)
+    except KeyError:
+        print "FATAL: volume %s could not be found" %(hashkey)
         sys.exit()
+
+
 
     Lattice1.cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
     Lattice2.cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
@@ -744,6 +789,8 @@ def SaveVolume(hashkey,volumeAtoms,lattice_positions,specie_list):
         outfile.close()
         return
 
+
+
 # find the final hashkey for a given defect and transition
 def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
     adatom_positions = []
@@ -816,14 +863,22 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
 
         # create hashkey for each adatom + store volume
         vol_key, Lattice1 = hashkey(lattice_positions,specie_list,volumeAtoms)
-        Lattice1.NAtoms = len(specie_list)
-        SaveVolume(vol_key,volumeAtoms,lattice_positions,specie_list)
+        Lattice1.NAtoms = len(volumeAtoms)
+        #SaveVolume(vol_key,volumeAtoms,lattice_positions,specie_list)
+        try:
+            vol = volumes[vol_key]
+        except KeyError:
+            volumes[vol_key] = volume()
+            vol = volumes[vol_key]
+        volumeAtoms = np.arange(len(volumeAtoms),dtype=np.int32)
+        vol.addVolumeAtoms(volumeAtoms,Lattice1.pos,Lattice1.specie)
+
         trnsfMatrix = TransformMatrix(vol_key,volumeAtoms,Lattice1,lattice_positions)
         del Lattice1
 
-        trans_file = trans_dir + str(vol_key)+'.txt'
+        #trans_file = trans_dir + str(vol_key)+'.txt'
 
-        try:
+        if len(vol.directions) != 0:
             vol = volumes[vol_key]
             # vol.hashkey = vol_key
             for direc in vol.directions:
@@ -848,9 +903,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                             event_list.append([rate,j,dir_vector,float(result[2])])
 
 
-        except KeyError:
-            vol = volume()
-            vol.hashkey = vol_key
+        else:
             print "Cannot find volume transitions. Doing searches now ", vol_key
             # do searches on volume and save to new trans file
             status, result, vol = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms,vol)
@@ -1352,10 +1405,26 @@ def writeVolumes(volumes):
             out.write(str(direc[0])+'\t'+str(direc[1])+'\t'+str(direc[2])+'\n')
         for j, trans in enumerate(volumes[vol].finalKeys):
             out.write(str(trans)+'\t'+str(volumes[vol].finalKeys[trans].barrier)+'\t'+str(volumes[vol].finalKeys[trans].rate)+'\n')
+
+    writeVolAtoms(volumes)
+    return
+
+def writeVolAtoms(volumes):
+    volfile = initial_dir + '/VolumeAtoms.txt'
+
+    out = open(volfile, 'w')
+    for i, vol in enumerate(volumes):
+        numAtoms = len(volumes[vol].volumeAtoms)
+        out.write(str(vol)+'\t'+str(numAtoms)+'\n')
+        cV = volumes[vol]
+        for j in range(numAtoms):
+            out.write(str(cV.specie[j]) + '   ' + str(cV.pos[3*j])+ '    '+str(cV.pos[3*j+1])+ '   '+ str(cV.pos[3*j+2])+'\n')
     return
 
 # read volumes from file
 def readVolumes(volumes):
+
+    # read in transitions
     volPath = initial_dir + '/Volumes.txt'
     if (os.path.isfile(volPath)):
         input_file = open(volPath, 'r')
@@ -1385,6 +1454,30 @@ def readVolumes(volumes):
                 else:
                     vol.addTrans(direc, str(line[0]), str(line[1]), float(0.0))
             volumes[key]=vol
+
+    # read in volume atom positions
+    volPath = initial_dir + '/VolumeAtoms.txt'
+    if (os.path.isfile(volPath)):
+        input_file = open(volPath, 'r')
+        while 1:
+            latline = input_file.readline()
+            line = latline.split()
+            if len(line) < 2:
+                break
+            key = str(line[0])
+            numAtoms = int(line[1])
+            vol = volumes[key]
+            for i in range(numAtoms):
+                latline = input_file.readline()
+                line = latline.split()
+                if len(line) < 4:
+                    break
+                vol.specie.append(int(line[0]))
+                vol.pos.append(float(line[1]))
+                vol.pos.append(float(line[2]))
+                vol.pos.append(float(line[3]))
+                vol.volumeAtoms.append(int(i))
+            print "read in volume, ", key
 
     return volumes
 
