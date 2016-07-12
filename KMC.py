@@ -22,9 +22,10 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 #- User inputs hard coded in script
 jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 25		        # number of initial depositions
-total_steps = 26           # total number of steps to run
+numberDepos = 2		        # number of initial depositions
+total_steps = 10           # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
+volumesOutEvery = 10        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
 boltzmann = 8.62E-05        # Boltzmann constant (8.62E-05)
@@ -1121,7 +1122,6 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
             results = [direction, final_key, barrier]
             results[0] = map(int,results[0])
             del ini, iniMin
-            del fin, finMin
             vol.addTrans(direction, final_key, barrier, str("None"))
             #add_to_trans_file(hashkey,results)
             return results, vol
@@ -1133,7 +1133,6 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
         sys.exit()
 
     del ini, iniMin
-    del fin, finMin
     del Sep
     print "Finished SINGlE NEB", "="*60
     return results, vol
@@ -1385,7 +1384,7 @@ if jobStatus == 'CNTIN':
                 full_depo_list[i][4] = orig_len + 1 + i
 
             natoms += len(full_depo_list)
-            CurrentStep = num * latticeOutEvery
+            CurrentStep = (num-1) * latticeOutEvery
             break
         num += 1
 
@@ -1402,19 +1401,31 @@ while CurrentStep < (numberDepos):
         CurrentStep += 1
 
 print "-" * 80
-print full_depo_list
+print "Number of initial adatoms: " , len(full_depo_list)
 index = CurrentStep
 
+# store previous 2 list of positions and events
+full_depo_list1 = [0,0]
+full_depo_list2 = [0,0]
 
 # do KMC run
 while CurrentStep < (total_steps + 1):
     # TODO: include a verbosity level
     print "Current Step: ", CurrentStep
 
-    event_list, volumes = create_events_list(full_depo_list,surface_lattice, volumes)
+    # check if in same position as 2 steps ago
+    if full_depo_list != full_depo_list2[1]:
+        event_list, volumes = create_events_list(full_depo_list,surface_lattice, volumes)
+    else:
+        # do quick reuse
+        event_list = full_depo_list2[0]
+
+    full_depo_list2 = full_depo_list1
+    full_depo_list1[1] = full_depo_list
+    full_depo_list1[0] = event_list
 
     # write out volumes file
-    if CurrentStep%latticeOutEvery == 0 or CurrentStep == total_steps:
+    if CurrentStep%volumesOutEvery == 0 or CurrentStep == total_steps:
         writeVolumes(volumes)
 
     # write out stats
@@ -1526,9 +1537,9 @@ if StatsOut:
             AveBarrier += float(line[1])
             AveEvents += float(line[2])
         input_file.close()
-        AveRate = AveRate/CurrentStep
-        AveBarrier = AveBarrier/CurrentStep
-        AveEvents = AveEvents/CurrentStep
+        AveRate = AveRate/(CurrentStep-numberDepos)
+        AveBarrier = AveBarrier/(CurrentStep-numberDepos)
+        AveEvents = AveEvents/(CurrentStep-numberDepos)
         print "Average Rate: ", AveRate, "\tAverage Barrier: ", AveBarrier, "\tAverage Number of events: ", AveEvents
 
 
