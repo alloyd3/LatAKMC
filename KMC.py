@@ -22,8 +22,8 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 #- User inputs hard coded in script
 jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 1		        # number of initial depositions
-total_steps = 5           # total number of steps to run
+numberDepos = 25		        # number of initial depositions
+total_steps = 26           # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -666,29 +666,7 @@ def TransformMatrix(hashkey,volumeAtoms,Lattice1,lattice_positions):
     #Lattice1 = lattice()
     Lattice2 = lattice()
 
-    # # read in lattice from file to compare
-    # VolumeFile = Volumes_dir + '/'+str(hashkey)+'.txt'
-    # if (os.path.isfile(VolumeFile)):
-    #     input_file = open(VolumeFile, 'r')
-    #     line = input_file.readline()
-    #     LatLength = int(line)
-    #     for i in xrange(LatLength):
-    #         latline = input_file.readline()
-    #         lat = latline.split()
-    #         lattice2_species.append(lat[0])
-    #         lattice2_positions.append(lat[1])
-    #         lattice2_positions.append(lat[2])
-    #         lattice2_positions.append(lat[3])
-    #     # save positions to a lattice object
-    #     Lattice2.specie = np.asarray(lattice2_species,np.int32)
-    #     Lattice2.pos = np.asarray(lattice2_positions,dtype=np.float64)
-    #     for j in xrange(len(volumeAtoms)):
-    #         volline = input_file.readline()
-    #         volume2Atoms.append(int(volline))
-    #     volume2Atoms = np.asarray(volume2Atoms,dtype=np.int32)
-    #     #print volume2Atoms
-    # else:
-    #     sys.exit()
+    # assign lattice values from stored volume
     try:
         vol = volumes[hashkey]
         for i in xrange(len(vol.specie)):
@@ -702,7 +680,6 @@ def TransformMatrix(hashkey,volumeAtoms,Lattice1,lattice_positions):
     except KeyError:
         print "FATAL: volume %s could not be found" %(hashkey)
         sys.exit()
-
 
 
     Lattice1.cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
@@ -720,52 +697,10 @@ def TransformMatrix(hashkey,volumeAtoms,Lattice1,lattice_positions):
     del lattice2,lattice1,atLst1,atLst2,cntr1,cntr2
 
     # multiply transform matrix by north direction vector
-    result = np.dot(trnsfMatrix,[2*x_grid_dist,0,0])
-    result = np.around(result, decimals=3)
-    comparex = round(x_grid_dist,3)
-    comparez = round(z_grid_dist,3)
-
-    #TODO: round instead of +- 0.05
-    # compare to x and z grid distances to find direction after rotation
-    # if comparex-0.05 < result[0] < comparex+0.05:
-    #     if comparez-0.05 < result[2] < comparez+0.05:
-    #         initial_direction = 3
-    #     if -comparez-0.05 < result[2] < -comparez+0.05:
-    #         initial_direction = 1
-    # elif -comparex-0.05 < result[0] < -comparex+0.05:
-    #     if comparez-0.05 < result[2] < comparez+0.05:
-    #         initial_direction = 4
-    #     if -comparez-0.05 < result[2] < -comparez+0.05:
-    #         initial_direction = 2
-    # elif -2*comparex-0.1 < result[0] < -2*comparex+0.1:
-    #     initial_direction = 5
-    # elif 2*comparex-0.1 < result[0] < 2*comparex+0.1:
-    #     initial_direction = 0
-    # else:
-    #     print "Error in initial direction method"
-    #     sys.exit()
-
-    # TODO: This is not needed anymore?
-    # compare to x and z grid distances to find direction after rotation
-    if round(result[0]-comparex,2) == 0:
-        if round(result[2]-comparez,2) == 0:
-            initial_direction = 3
-        elif round(result[2]+comparez,2) == 0:
-            initial_direction = 1
-    elif round(result[0]+comparex,2) == 0:
-        if round(result[2]-comparez,2) == 0:
-            initial_direction = 4
-        elif round(result[2]+comparez,2) == 0:
-            initial_direction = 2
-    elif round(result[0]+2*comparex,2) == 0:
-        initial_direction = 5
-    elif round(result[0]-2*comparex,2) == 0:
-        initial_direction = 0
-    else:
-        print "Error in initial direction method"
-        print "x grid dist: ", comparex,"result: ", result[0]
-        print "z grid dist: ", comparez,"result: ", result[2]
-        sys.exit()
+    # result = np.dot(trnsfMatrix,[2*x_grid_dist,0,0])
+    # result = np.around(result, decimals=3)
+    # comparex = round(x_grid_dist,3)
+    # comparez = round(z_grid_dist,3)
 
     return trnsfMatrix
 
@@ -845,8 +780,6 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
     lattice_positions = surface_positions + adatom_positions
     specie_list = surface_specie + adatom_specie
 
-
-
     # find transitions for each adatom
     for j in xrange(len(full_depo_list)):
         final_keys = []
@@ -855,16 +788,12 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
         hashkeyExists = []
 
         # find atoms in volume
-
         volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
-
-        #new_list = [x+1 for x in volumeAtoms]
-        #print new_list
 
         # create hashkey for each adatom + store volume
         vol_key, Lattice1 = hashkey(lattice_positions,specie_list,volumeAtoms)
         Lattice1.NAtoms = len(volumeAtoms)
-        #SaveVolume(vol_key,volumeAtoms,lattice_positions,specie_list)
+
         try:
             vol = volumes[vol_key]
         except KeyError:
@@ -876,7 +805,6 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
         trnsfMatrix = TransformMatrix(vol_key,volumeAtoms,Lattice1,lattice_positions)
         del Lattice1
 
-        #trans_file = trans_dir + str(vol_key)+'.txt'
 
         if len(vol.directions) != 0:
             vol = volumes[vol_key]
@@ -913,90 +841,6 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                 event_list = event_list + result
                 volumes[vol_key] = vol
 
-        # # read in trans file
-        # if (os.path.isfile(trans_file)):
-        #     input_file = open(trans_file, 'r')
-        #     # skip first line
-        #     while 1:
-        #         latline = input_file.readline()
-        #         barriers = latline.split()
-        #         if len(barriers) > 1:
-        #             if len(barriers) == 3:
-        #                 # multiply vector by transformation matrix
-        #                 dis_x = float(barriers[0])*x_grid_dist
-        #                 dis_y = float(barriers[1])*y_grid_dist
-        #                 dis_z = float(barriers[2])*z_grid_dist
-        #                 dir_vector = np.dot(trnsfMatrix,[dis_x,dis_y,dis_z])
-        #                 dir_vector[0] = int(round(dir_vector[0]/x_grid_dist))
-        #                 dir_vector[1] = int(round(dir_vector[1]/y_grid_dist))
-        #                 dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
-        #                 # find final hashkeys and save
-        #                 final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
-        #
-        #                 if final_key:
-        #                     final_keys.append(final_key)
-        #                     directions.append(dir_vector)
-        #                     hashkeyExists.append(0)
-        #
-        #             if len(barriers) == 2:
-        #                 # compare final hashkey to trans file
-        #                 events = 0
-        #                 events, hashkeyExists = add_to_events(final_keys,barriers[0],barriers[1],j,directions,hashkeyExists)
-        #                 if events:
-        #                     event_list = event_list + events
-        #
-        #
-        #         else:
-        #             for k in xrange(len(final_keys)):
-        #                 if not hashkeyExists[k]:
-        #                     result = singleNEB(directions[k],full_depo_index,surface_lattice,j,vol_key,final_keys[k],natoms)
-        #                     if result:
-        #                         if result[2] != "None":
-        #                             rate = calc_rate(float(result[2]))
-        #                             event_list.append([rate,j,directions[k],float(result[2])])
-        #             else:
-        #                 break
-        # else:
-        #     print "WARNING: Cannot find transitions file. Do searches ", vol_key
-        #     # do searches on volume and save to new trans file
-        #     status = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms)
-        #     if status:
-        #         break
-        #     input_file = open(trans_file, 'r')
-        #     # skip first line
-        #     while 1:
-        #         latline = input_file.readline()
-        #         barriers = latline.split()
-        #         if len(barriers) > 1:
-        #             if len(barriers) == 3:
-        #                 # multiply vector by transformation matrix
-        #                 dis_x = float(barriers[0])*x_grid_dist
-        #                 dis_y = float(barriers[1])*y_grid_dist
-        #                 dis_z = float(barriers[2])*z_grid_dist
-        #                 dir_vector = np.dot(trnsfMatrix,[dis_x,dis_y,dis_z])
-        #                 dir_vector[0] = int(round(dir_vector[0]/x_grid_dist))
-        #                 dir_vector[1] = int(round(dir_vector[1]/y_grid_dist))
-        #                 dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
-        #                 # find final hashkeys and save
-        #                 final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
-        #                 final_keys.append(final_key)
-        #                 directions.append(dir_vector)
-        #                 hashkeyExists.append(0)
-        #
-        #             if len(barriers) == 2:
-        #
-        #                 # compare final hashkey to trans file
-        #                 events, hashkeyExists = add_to_events(final_keys,barriers[0],barriers[1],j,directions, hashkeyExists)
-        #                 if events:
-        #                     event_list = event_list + events
-        #
-        #         else:
-        #             if hashkeyExists == None:
-        #                 print "WARNING: Final Hashkey not found, more info needed"
-        #                 sys.exit()
-        #             else:
-        #                 break
-        # input_file.close()
         del volumeAtoms
 
     del lattice_positions
@@ -1268,7 +1112,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 results[0] = map(int,results[0])
                 del ini, iniMin
                 del fin, finMin
-                vol.addTrans(direction, final_key, barrier, str("None"))
+                vol.addTrans(results[0], final_key, barrier, str("None"))
                 #add_to_trans_file(hashkey,results)
                 return results, vol
         else:
@@ -1294,102 +1138,6 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
     print "Finished SINGlE NEB", "="*60
     return results, vol
 
-# after autoNEB, create new transition file with results
-def write_trans_file(hashkey,results):
-    trans_file = initial_dir + '/Transitions/'+str(hashkey)+'.txt'
-    vectors = []
-    keys =[]
-    barr =[]
-
-    if os.path.exists(trans_file):
-        while 1:
-            # read in existing transition file
-            input_file = open(trans_file, 'r')
-            line = input_file.readline()
-            line = line.split()
-            if len(line) > 1:
-                if len(line) == 3:
-                    vectors.append([int(line[0]),int(line[1]),int(line[2])])
-                if len(line) == 2:
-                    keys.append(line[0])
-                    barr.append(float(line[1]))
-            else:
-                break
-            input_file.close()
-
-    # remove duplicates from list
-    new_keys = []
-    new_barr = []
-    new_keys.append(results[0][1])
-    new_barr.append(results[0][2])
-    for i in xrange(len(results)):
-        if results[i][1] not in new_keys:
-            new_keys.append(results[i][1])
-            new_barr.append(results[i][2])
-
-    outfile = open(trans_file, 'w')
-    # write vectors first
-    for i in xrange(len(vectors)):
-        outfile.write(str(vectors[i][0])+'  '+str(vectors[i][1])+'  '+str(vectors[i][2]) + '\n')
-    for i in xrange(len(results)):
-        result = results[i]
-        if result[0] not in vectors:
-            outfile.write(str(result[0][0])+'  '+str(result[0][1])+'  '+str(result[0][2])+'\n')
-
-    # write hashkeys + barriers
-    for i in xrange(len(keys)):
-        outfile.write(str(keys[i])+'    '+str(barr[i])+'\n')
-    for i in xrange(len(new_keys)):
-        if new_keys[i] not in keys:
-            outfile.write(str(new_keys[i])+'  '+str(new_barr[i])+'\n')
-    outfile.close()
-
-    return
-
-# add a single transition to trans file
-def add_to_trans_file(hashkey,result):
-    trans_file = initial_dir + '/Transitions/'+str(hashkey)+'.txt'
-    vectors = []
-    keys =[]
-    barr =[]
-
-    if os.path.exists(trans_file):
-        input_file = open(trans_file, 'r')
-        while 1:
-            # read in existing transition file
-            line = input_file.readline()
-            line = line.split()
-            if len(line) > 1:
-                if len(line) == 3:
-                    vectors.append([int(line[0]),int(line[1]),int(line[2])])
-                if len(line) == 2:
-                    keys.append(line[0])
-                    if line[1] != "None":
-                        barr.append(float(line[1]))
-                    else:
-                         barr.append("None")
-            else:
-                break
-        input_file.close()
-
-    outfile = open(trans_file, 'w')
-    # write vectors first
-    for i in xrange(len(vectors)):
-        outfile.write(str(vectors[i][0])+'  '+str(vectors[i][1])+'  '+str(vectors[i][2]) + '\n')
-    if result[0] not in vectors:
-        outfile.write(str(result[0][0])+'  '+str(result[0][1])+'  '+str(result[0][2])+'\n')
-
-    # write hashkeys + barriers
-    for i in xrange(len(keys)):
-        outfile.write(str(keys[i]) +'   '+str(barr[i])+'\n')
-    if result[1] not in keys:
-            outfile.write(str(result[1])+'  '+str(result[2])+'\n')
-    print "Current vol", hashkey
-    #print result[1], keys
-    outfile.close()
-
-    return
-
 # write out all volumes and transitions to a file
 def writeVolumes(volumes):
     volfile = initial_dir + '/Volumes.txt'
@@ -1409,6 +1157,7 @@ def writeVolumes(volumes):
     writeVolAtoms(volumes)
     return
 
+# write out volume atom positions to a file
 def writeVolAtoms(volumes):
     volfile = initial_dir + '/VolumeAtoms.txt'
 
@@ -1466,7 +1215,11 @@ def readVolumes(volumes):
                 break
             key = str(line[0])
             numAtoms = int(line[1])
-            vol = volumes[key]
+            try:
+                vol = volumes[key]
+            except KeyError:
+                volumes[key] = volume()
+                vol = volumes[key]
             for i in range(numAtoms):
                 latline = input_file.readline()
                 line = latline.split()
@@ -1477,7 +1230,6 @@ def readVolumes(volumes):
                 vol.pos.append(float(line[2]))
                 vol.pos.append(float(line[3]))
                 vol.volumeAtoms.append(int(i))
-            print "read in volume, ", key
 
     return volumes
 
@@ -1492,7 +1244,10 @@ def StatsOutput(event_list,CurrentStep,numAdatoms):
         for i in xrange(num):
             TotalRate += float(event_list[i][0])
             if event_list[i][3] != None:
-                TotalBarrier += float(event_list[i][3])
+                try:
+                    TotalBarrier += float(event_list[i][3])
+                except ValueError:
+                    continue
 
         AveRate = TotalRate/num
         AveBarrier = TotalBarrier/num
@@ -1501,9 +1256,6 @@ def StatsOutput(event_list,CurrentStep,numAdatoms):
     else:
         print "Warning! Could not find Stats.txt"
     return
-
-
-
 
 
 
@@ -1780,6 +1532,6 @@ if StatsOut:
         print "Average Rate: ", AveRate, "\tAverage Barrier: ", AveBarrier, "\tAverage Number of events: ", AveEvents
 
 
-
+del volumes
 del full_depo_list
 del surface_lattice
