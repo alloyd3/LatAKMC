@@ -1122,7 +1122,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
             results = [direction, final_key, barrier]
             results[0] = map(int,results[0])
             del ini, iniMin
-            vol.addTrans(direction, final_key, barrier, str("None"))
+            vol.addTrans(results[0], final_key, barrier, str("None"))
             #add_to_trans_file(hashkey,results)
             return results, vol
 
