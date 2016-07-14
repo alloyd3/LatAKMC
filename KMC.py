@@ -565,10 +565,15 @@ def choose_event(event_list,Time):
     TotalBarrier = 0
     num = len(event_list)
     for i in xrange(num):
-        if event_list[i][0] > 0:
-            TotalRate += event_list[i][0]
-            TotalBarrier += float(event_list[i][3])
-            R.append([TotalRate,event_list[i][1],event_list[i][2],event_list[i][3]])
+        if event_list[i][0] > 0 and event_list[i][0] != 'None':
+            try:
+                TotalRate += event_list[i][0]
+                TotalBarrier += float(event_list[i][3])
+                R.append([TotalRate,event_list[i][1],event_list[i][2],event_list[i][3]])
+            except TypeError:
+                print "WARNING! Type error in choose_event: "
+                print "Rate: ",  event_list[i][0], "\tBarrier: ", event_list[i][3]
+                sys.exit()
     TotalRate
 
     numEvents = len(event_list)
@@ -1420,9 +1425,9 @@ while CurrentStep < (total_steps + 1):
         # do quick reuse
         event_list = full_depo_list2[0]
 
-    full_depo_list2 = full_depo_list1
-    full_depo_list1[1] = full_depo_list
-    full_depo_list1[0] = event_list
+    full_depo_list2 = copy.deepcopy(full_depo_list1)
+    full_depo_list1[1] = copy.deepcopy(full_depo_list)
+    full_depo_list1[0] = copy.deepcopy(event_list)
 
     # write out volumes file
     if CurrentStep%volumesOutEvery == 0 or CurrentStep == total_steps:
