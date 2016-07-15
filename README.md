@@ -15,22 +15,20 @@ Grid positions start at (0,0,0) <br>
 ### Setup:
 KMC.py            - main source code (python)<br>
 lattice.dat      - initial lattice file<br>
-Volumes           - directory containing saved volume lattices<br>
-Transitions       - directory containing transitions for each volume<br>
+Volumes.txt           - File containing transitions for each volume<br>
+VolumeAtoms.txt       - File containing volume atoms and positions for reference volume<br>
 Output            - directory containing lattices after KMC steps<br>
 
-#### Volumes
-Each volume file is named by the volume hashkey. <br>
+#### Volumes.txt
 Format:<br>
-Number of atoms in lattice<br>
-List of atoms in lattice (species, x, y, z coordinates)<br>
-List of Atom indices in hashkey<br>
+Hashkey, Number of directions, Number of barriers<br>
+Displacement vectors in integer lattice units (x y z)<br>
+Final hashkeys, barrier, rate<br>
 
-#### Transitions
-Each Transition file is named by the initial volume hashkey. <br>
+#### VolumeAtoms.txt
 Format:<br>
-Displacement vectors in integer lattice units (x y z) <br>
-List of final Hashkeys and Barrier heights (eV)
+Hashkey, Number of atoms <br>
+List of species and x,y,z positions (eV)
 
 #### Output
 Each ouput file is called KMC + KMC step.<br>
