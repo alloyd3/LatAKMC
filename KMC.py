@@ -23,7 +23,7 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 2		        # number of initial depositions
-total_steps = 10           # total number of steps to run
+total_steps = 25           # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 volumesOutEvery = 10        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
@@ -80,6 +80,10 @@ class volume(object):
             newKey.rate = rate
             # newKey.hashkey = finalKey
             self.finalKeys[finalKey] = newKey
+
+    def addDirection(self, direction):
+        if direction not in self.directions:
+            self.directions.append(direction)
 
     # store new volume atoms in memory
     def addVolumeAtoms(self, volumeAtoms,lattice_positions,specie_list):
@@ -499,30 +503,30 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
         if round(y-y2,2) > (y_grid_dist2*1.1):
             nH = neighbour_heights.count(round(y2,6))
             if nH < 3:
-                print "Moved to 'floating' unstable position", nH
+                #print "Moved to 'floating' unstable position", nH
                 return None
     else:
         nH = neighbour_heights.count(round(y-y_grid_dist2,6))
         if nH < 3:
             nH = neighbour_heights.count(round(y-y_grid_dist,6))
             if nH < 3:
-                print "Moved to 'floating' unstable position", nH
+                #print "Moved to 'floating' unstable position", nH
                 return None
 
 
 
     # check for move fails
     if round(y-y_grid_dist-neighbour_heights[0],2) == 0:
-        print "Moved to unstable position", neighbour_species[0]
+        #print "Moved to unstable position", neighbour_species[0]
         print x,y,z
         return None
     if round(y-y_grid_dist2-neighbour_heights[0],2) == 0:
-        print "Moved to unstable position", neighbour_species[0]
+        #print "Moved to unstable position", neighbour_species[0]
         print x,y,z
         return None
 
     if round(y-neighbour_heights[0],2) == 0:
-        print "Moved into existing atom!"
+        #print "Moved into existing atom!"
         print x,y,z
         return None
 
@@ -535,12 +539,12 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
     if dir_vector[1] == 0:
         # will always be at least 1 as it includes self pre-move
         if AdNeighbours > 1:
-            print "Moved too close to existing atoms"
+            #print "Moved too close to existing atoms"
             print x,y,z
             return None
     else:
         if AdNeighbours > 0:
-            print "Moved too close to existing atoms"
+            #print "Moved too close to existing atoms"
             print x,y,z
             return None
 
@@ -805,10 +809,10 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
         except KeyError:
             volumes[vol_key] = volume()
             vol = volumes[vol_key]
-        volumeAtoms = np.arange(len(volumeAtoms),dtype=np.int32)
-        vol.addVolumeAtoms(volumeAtoms,Lattice1.pos,Lattice1.specie)
+        # volumeAtoms = np.arange(len(volumeAtoms),dtype=np.int32)
+        # vol.addVolumeAtoms(volumeAtoms,Lattice1.pos,Lattice1.specie)
 
-        trnsfMatrix = TransformMatrix(vol_key,volumeAtoms,Lattice1,lattice_positions)
+        # trnsfMatrix = TransformMatrix(vol_key,volumeAtoms,Lattice1,lattice_positions)
         del Lattice1
 
 
@@ -816,25 +820,28 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
             vol = volumes[vol_key]
             # vol.hashkey = vol_key
             for direc in vol.directions:
-                dis_x = float(direc[0])*x_grid_dist
-                dis_y = float(direc[1])*y_grid_dist
-                dis_z = float(direc[2])*z_grid_dist
-                dir_vector = np.dot(trnsfMatrix,[dis_x,dis_y,dis_z])
-                dir_vector[0] = int(round(dir_vector[0]/x_grid_dist))
-                dir_vector[1] = int(round(dir_vector[1]/y_grid_dist))
-                dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
-                final_key = findFinal(dir_vector,j,full_depo_index,surface_positions)
+                # dir_vector = np.empty(3,dtype=int)
+                # dir_vector[0] = float(direc[0])*x_grid_dist
+                # dir_vector[1] = float(direc[1])*y_grid_dist
+                # dir_vector[2] = float(direc[2])*z_grid_dist
+                #
+                # dir_vector = direc
+                # #
+                # # dir_vector[0] = int(round(dir_vector[0]/x_grid_dist))
+                # # dir_vector[1] = int(round(dir_vector[1]/y_grid_dist))
+                # # dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
+                final_key = findFinal(direc,j,full_depo_index,surface_positions)
 
                 try:
                     trans = vol.finalKeys[final_key]
                     # trans.hashkey = final_key
-                    event_list.append([trans.rate,j,dir_vector,trans.barrier])
+                    event_list.append([trans.rate,j,direc,trans.barrier])
                 except KeyError:
-                    result, vol = singleNEB(dir_vector,full_depo_index,surface_lattice,j,vol_key,final_key,natoms,vol)
+                    result, vol = singleNEB(direc,full_depo_index,surface_lattice,j,vol_key,final_key,natoms,vol)
                     if result:
                         if result[2] != "None":
                             rate = calc_rate(float(result[2]))
-                            event_list.append([rate,j,dir_vector,float(result[2])])
+                            event_list.append([rate,j,direc,float(result[2])])
 
 
         else:
@@ -946,6 +953,8 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
             # move atom
             moved_list = move_atom(depo_list, dir_vector[i] ,full_depo_index)
             print dir_vector[i]
+            vol.addDirection(dir_vector[i])
+
             if moved_list:
                 full_depo[atom_index] = moved_list
 
@@ -1000,6 +1009,9 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
                     barrier = str("None")
                     results.append([str("None"),atom_index, dir_vector, barrier])
                     vol.addTrans(dir_vector[i], final_key, barrier, str("None"))
+            # else:
+            #     final_key = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
+            #     vol.addTrans(dir_vector[i], final_key, str("None"), 0)
 
         if results:
             print results
@@ -1065,7 +1077,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 results[0] = map(int,results[0])
                 del ini, iniMin
                 del fin, finMin
-                vol.addTrans(results[0], final_key, barrier, str("None"))
+                vol.addTrans(results[0], final_key, barrier, 0)
                 # add_to_trans_file(hashkey,results)
                 return results, vol
 
@@ -1080,7 +1092,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 results[0] = map(int,results[0])
                 del ini, iniMin
                 del fin, finMin
-                vol.addTrans(results[0], final_key, barrier, str("None"))
+                vol.addTrans(results[0], final_key, barrier, 0)
                 # add_to_trans_file(hashkey,results)
                 return results, vol
 
@@ -1099,7 +1111,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                     results[0] = map(int,results[0])
                     del ini, iniMin
                     del fin, finMin
-                    vol.addTrans(results[0], final_key, barrier, str("None"))
+                    vol.addTrans(results[0], final_key, barrier, 0)
                     #add_to_trans_file(hashkey,results)
                     return results, vol
 
@@ -1118,7 +1130,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 results[0] = map(int,results[0])
                 del ini, iniMin
                 del fin, finMin
-                vol.addTrans(results[0], final_key, barrier, str("None"))
+                vol.addTrans(results[0], final_key, barrier, 0)
                 #add_to_trans_file(hashkey,results)
                 return results, vol
         else:
@@ -1127,7 +1139,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
             results = [direction, final_key, barrier]
             results[0] = map(int,results[0])
             del ini, iniMin
-            vol.addTrans(results[0], final_key, barrier, str("None"))
+            vol.addTrans(results[0], final_key, barrier, 0)
             #add_to_trans_file(hashkey,results)
             return results, vol
 
@@ -1158,7 +1170,7 @@ def writeVolumes(volumes):
         for j, trans in enumerate(volumes[vol].finalKeys):
             out.write(str(trans)+'\t'+str(volumes[vol].finalKeys[trans].barrier)+'\t'+str(volumes[vol].finalKeys[trans].rate)+'\n')
 
-    writeVolAtoms(volumes)
+    # writeVolAtoms(volumes)
     return
 
 # write out volume atom positions to a file
@@ -1209,31 +1221,31 @@ def readVolumes(volumes):
             volumes[key]=vol
 
     # read in volume atom positions
-    volPath = initial_dir + '/VolumeAtoms.txt'
-    if (os.path.isfile(volPath)):
-        input_file = open(volPath, 'r')
-        while 1:
-            latline = input_file.readline()
-            line = latline.split()
-            if len(line) < 2:
-                break
-            key = str(line[0])
-            numAtoms = int(line[1])
-            try:
-                vol = volumes[key]
-            except KeyError:
-                volumes[key] = volume()
-                vol = volumes[key]
-            for i in range(numAtoms):
-                latline = input_file.readline()
-                line = latline.split()
-                if len(line) < 4:
-                    break
-                vol.specie.append(int(line[0]))
-                vol.pos.append(float(line[1]))
-                vol.pos.append(float(line[2]))
-                vol.pos.append(float(line[3]))
-                vol.volumeAtoms.append(int(i))
+    # volPath = initial_dir + '/VolumeAtoms.txt'
+    # if (os.path.isfile(volPath)):
+    #     input_file = open(volPath, 'r')
+    #     while 1:
+    #         latline = input_file.readline()
+    #         line = latline.split()
+    #         if len(line) < 2:
+    #             break
+    #         key = str(line[0])
+    #         numAtoms = int(line[1])
+    #         try:
+    #             vol = volumes[key]
+    #         except KeyError:
+    #             volumes[key] = volume()
+    #             vol = volumes[key]
+    #         for i in range(numAtoms):
+    #             latline = input_file.readline()
+    #             line = latline.split()
+    #             if len(line) < 4:
+    #                 break
+    #             vol.specie.append(int(line[0]))
+    #             vol.pos.append(float(line[1]))
+    #             vol.pos.append(float(line[2]))
+    #             vol.pos.append(float(line[3]))
+    #             vol.volumeAtoms.append(int(i))
 
     return volumes
 
