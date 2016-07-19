@@ -22,8 +22,8 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 #- User inputs hard coded in script
 jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 2		        # number of initial depositions
-total_steps = 25           # total number of steps to run
+numberDepos = 4		        # number of initial depositions
+total_steps = 50           # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 volumesOutEvery = 10        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
@@ -669,54 +669,9 @@ def hashkey(lattice_positions,specie_list,volumeAtoms):
     # get hashkey
     hashkey = Graphs.getHashKeyForAVolume(params,volumeAtoms,lattice)
 
-    return hashkey, lattice
+    del lattice
+    return hashkey
 
-# find the transform matrix between 2 defect volumes
-def TransformMatrix(hashkey,volumeAtoms,Lattice1,lattice_positions):
-    lattice2_positions = []
-    lattice2_species = []
-    volume2Atoms = []
-
-    #Lattice1 = lattice()
-    Lattice2 = lattice()
-
-    # assign lattice values from stored volume
-    try:
-        vol = volumes[hashkey]
-        for i in xrange(len(vol.specie)):
-            lattice2_species.append(vol.specie[i])
-            lattice2_positions.append(vol.pos[3*i])
-            lattice2_positions.append(vol.pos[3*i+1])
-            lattice2_positions.append(vol.pos[3*i+2])
-        Lattice2.specie = np.asarray(lattice2_species,np.int32)
-        Lattice2.pos = np.asarray(lattice2_positions,dtype=np.float64)
-        volume2Atoms = np.arange(len(vol.specie),dtype=np.int32)
-    except KeyError:
-        print "FATAL: volume %s could not be found" %(hashkey)
-        sys.exit()
-
-
-    Lattice1.cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
-    Lattice2.cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
-    volumeAtoms = np.asarray(volumeAtoms,dtype=np.int32)
-    params.graphRadius = graphRad
-
-    # find the transform matrix
-    trnsfMatrix, lattice1, atLst1, lattice2, atLst2, cntr1, cntr2 = Graphs.prepareTheMatrix(params,volume2Atoms,Lattice2, True, volumeAtoms, Lattice1, True)
-
-    trnsfMatrix = np.around(trnsfMatrix, decimals=5)
-
-    #print trnsfMatrix
-    del Lattice2
-    del lattice2,lattice1,atLst1,atLst2,cntr1,cntr2
-
-    # multiply transform matrix by north direction vector
-    # result = np.dot(trnsfMatrix,[2*x_grid_dist,0,0])
-    # result = np.around(result, decimals=3)
-    # comparex = round(x_grid_dist,3)
-    # comparez = round(z_grid_dist,3)
-
-    return trnsfMatrix
 
 # save defect volume to compare against
 # - stores lattice + volume atom indices
@@ -766,8 +721,7 @@ def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
         volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
 
         # create hashkey
-        final_key, Lattice1 = hashkey(lattice_positions,specie_list,volumeAtoms)
-        del Lattice1
+        final_key = hashkey(lattice_positions,specie_list,volumeAtoms)
 
         #write_lattice(1000,full_depo_index,surface_lattice,401,0,0)
         del full_depo
@@ -805,35 +759,19 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
         volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
 
         # create hashkey for each adatom + store volume
-        vol_key, Lattice1 = hashkey(lattice_positions,specie_list,volumeAtoms)
-        Lattice1.NAtoms = len(volumeAtoms)
+        vol_key = hashkey(lattice_positions,specie_list,volumeAtoms)
 
         try:
             vol = volumes[vol_key]
         except KeyError:
             volumes[vol_key] = volume()
             vol = volumes[vol_key]
-        # volumeAtoms = np.arange(len(volumeAtoms),dtype=np.int32)
-        # vol.addVolumeAtoms(volumeAtoms,Lattice1.pos,Lattice1.specie)
-
-        # trnsfMatrix = TransformMatrix(vol_key,volumeAtoms,Lattice1,lattice_positions)
-        del Lattice1
 
 
         if len(vol.directions) != 0:
             vol = volumes[vol_key]
             # vol.hashkey = vol_key
             for direc in vol.directions:
-                # dir_vector = np.empty(3,dtype=int)
-                # dir_vector[0] = float(direc[0])*x_grid_dist
-                # dir_vector[1] = float(direc[1])*y_grid_dist
-                # dir_vector[2] = float(direc[2])*z_grid_dist
-                #
-                # dir_vector = direc
-                # #
-                # # dir_vector[0] = int(round(dir_vector[0]/x_grid_dist))
-                # # dir_vector[1] = int(round(dir_vector[1]/y_grid_dist))
-                # # dir_vector[2] = int(round(dir_vector[2]/z_grid_dist))
                 final_key = findFinal(direc,j,full_depo_index,surface_positions)
 
                 try:
@@ -956,7 +894,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
         for i in xrange(len(dir_vector)):
             # move atom
             moved_list = move_atom(depo_list, dir_vector[i] ,full_depo_index)
-            print dir_vector[i]
+            print "Trying direction: ", dir_vector[i]
             vol.addDirection(dir_vector[i])
 
             if moved_list:
@@ -1013,9 +951,6 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
                     barrier = str("None")
                     results.append([0,atom_index, dir_vector, barrier])
                     vol.addTrans(dir_vector[i], final_key, barrier, 0)
-            # else:
-            #     final_key = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
-            #     vol.addTrans(dir_vector[i], final_key, str("None"), 0)
 
         if results:
             print results
@@ -1224,33 +1159,6 @@ def readVolumes(volumes):
                     vol.addTrans(direc, str(line[0]), str(line[1]), float(0.0))
             volumes[key]=vol
 
-    # read in volume atom positions
-    # volPath = initial_dir + '/VolumeAtoms.txt'
-    # if (os.path.isfile(volPath)):
-    #     input_file = open(volPath, 'r')
-    #     while 1:
-    #         latline = input_file.readline()
-    #         line = latline.split()
-    #         if len(line) < 2:
-    #             break
-    #         key = str(line[0])
-    #         numAtoms = int(line[1])
-    #         try:
-    #             vol = volumes[key]
-    #         except KeyError:
-    #             volumes[key] = volume()
-    #             vol = volumes[key]
-    #         for i in range(numAtoms):
-    #             latline = input_file.readline()
-    #             line = latline.split()
-    #             if len(line) < 4:
-    #                 break
-    #             vol.specie.append(int(line[0]))
-    #             vol.pos.append(float(line[1]))
-    #             vol.pos.append(float(line[2]))
-    #             vol.pos.append(float(line[3]))
-    #             vol.volumeAtoms.append(int(i))
-
     return volumes
 
 # write stats to a file
@@ -1429,7 +1337,12 @@ index = CurrentStep
 full_depo_list1 = [0,0]
 full_depo_list2 = [0,0]
 
-# do KMC run
+
+# ============================================================================
+# ================== do KMC run ==============================================
+# ============================================================================
+
+
 while CurrentStep < (total_steps + 1):
     # TODO: include a verbosity level
     print "Current Step: ", CurrentStep
@@ -1492,40 +1405,6 @@ while CurrentStep < (total_steps + 1):
 
 
     print "-" * 80
-
-
-
-
-# ==============================================================================
-# ==============================================================================
-# # DEBUGING moves
-# adatom_positions = []
-# adatom_specie = []
-#
-# for i in xrange(len(full_depo_list)):
-#     adatom_specie.append(full_depo_list[i][0])
-#     adatom_positions.append(full_depo_list[i][1])
-#     adatom_positions.append(full_depo_list[i][2])
-#     adatom_positions.append(full_depo_list[i][3])
-# lattice_positions = surface_positions + adatom_positions
-# specie_list = surface_specie + adatom_specie
-#
-# depo_list = full_depo_list[27]
-#
-# volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
-#
-#
-# new_list = [x+1 for x in volumeAtoms]
-# print new_list
-#
-# vol_key, Lattice1 = hashkey(lattice_positions,specie_list,volumeAtoms)
-# print vol_key
-# SaveVolume(vol_key,volumeAtoms,lattice_positions,specie_list)
-# status = autoNEB(full_depo_list,surface_lattice,27,vol_key,natoms)
-
-# ==============================================================================
-# ==============================================================================
-
 
 
 # last lines of output
