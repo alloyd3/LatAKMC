@@ -578,6 +578,10 @@ def choose_event(event_list,Time):
                 print "WARNING! Type error in choose_event: "
                 print "Rate: ",  event_list[i][0], "\tBarrier: ", event_list[i][3]
                 sys.exit()
+            except ValueError:
+                print "WARNING! Value error in choose_event: "
+                print "Rate: ",  event_list[i][0], "\tBarrier: ", event_list[i][3]
+                sys.exit()
     TotalRate
 
     numEvents = len(event_list)
@@ -976,8 +980,8 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
                 if maxMove < 0.4:
                     print " difference between ini and fin is too small:", maxMove
                     barrier = str("None")
-                    results.append([str("None"),atom_index, dir_vector, barrier])
-                    vol.addTrans(dir_vector[i], final_key, barrier, str("None"))
+                    results.append([0,atom_index, dir_vector[i], barrier])
+                    vol.addTrans(dir_vector[i], final_key, barrier, 0)
                     continue
 
                 # check max movement
@@ -992,8 +996,8 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
                         print "Try changing parameters in lkmcInput.IN"
                         barrier = str("None")
 
-                        results.append([str("None"),atom_index, dir_vector, barrier])
-                        vol.addTrans(dir_vector[i], final_key, barrier, str("None"))
+                        results.append([0,atom_index, dir_vector[i], barrier])
+                        vol.addTrans(dir_vector[i], final_key, barrier, 0)
                         continue
 
                     neb.barrier = round(neb.barrier,6)
@@ -1007,8 +1011,8 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
                 else:
                     print "WARNING: maxMove too large in final lattice:", maxMove
                     barrier = str("None")
-                    results.append([str("None"),atom_index, dir_vector, barrier])
-                    vol.addTrans(dir_vector[i], final_key, barrier, str("None"))
+                    results.append([0,atom_index, dir_vector, barrier])
+                    vol.addTrans(dir_vector[i], final_key, barrier, 0)
             # else:
             #     final_key = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
             #     vol.addTrans(dir_vector[i], final_key, str("None"), 0)
