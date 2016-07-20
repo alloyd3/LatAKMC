@@ -74,7 +74,7 @@ class volume(object):
         if direction not in self.directions:
             self.directions.append(direction)
 
-        if finalKey not in self.finalKeys:
+        if finalKey not in self.finalKeys and finalKey != 'None' and finalKey is not None:
             newKey = key()
             newKey.barrier = barrier
             newKey.rate = rate
@@ -629,14 +629,15 @@ def hashkey(lattice_positions,specie_list,volumeAtoms):
     # set up parameters for hashkey calculation
 
     #lattice.pos = np.asarray(lattice_positions,dtype=np.float64)
-    lattice.pos = []
+    Lattice1 = lattice()
+    Lattice1.pos = []
     species = []
     for i in volumeAtoms:
-        lattice.pos.append(lattice_positions[3*i])
-        lattice.pos.append(lattice_positions[3*i+1])
-        lattice.pos.append(lattice_positions[3*i+2])
+        Lattice1.pos.append(lattice_positions[3*i])
+        Lattice1.pos.append(lattice_positions[3*i+1])
+        Lattice1.pos.append(lattice_positions[3*i+2])
         species.append(specie_list[i])
-    lattice.pos = np.asarray(lattice.pos,dtype=np.float64)
+    Lattice1.pos = np.asarray(Lattice1.pos,dtype=np.float64)
 
     for i in xrange(len(species)):
         if species[i] == 'O_':
@@ -657,19 +658,19 @@ def hashkey(lattice_positions,specie_list,volumeAtoms):
         #     specie_list[i] = 3
 
     # set lattice object values for hashkey
-    lattice.specie = np.asarray(species,np.int32)
-    lattice.cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
-    lattice.specieList = np.asarray(['O_','Zn','Ag'],dtype=np.character)
-    lattice.pos = np.around(lattice.pos,decimals = 5)
+    Lattice1.specie = np.asarray(species,np.int32)
+    Lattice1.cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
+    Lattice1.specieList = np.asarray(['O_','Zn','Ag'],dtype=np.character)
+    Lattice1.pos = np.around(Lattice1.pos,decimals = 5)
 
     volumeAtoms = np.arange(len(volumeAtoms),dtype=np.int32)
 
     params.graphRadius = graphRad
 
     # get hashkey
-    hashkey = Graphs.getHashKeyForAVolume(params,volumeAtoms,lattice)
+    hashkey = Graphs.getHashKeyForAVolume(params,volumeAtoms,Lattice1)
 
-    del lattice
+    del Lattice1
     return hashkey
 
 
