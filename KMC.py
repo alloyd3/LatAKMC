@@ -780,7 +780,6 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                         # trans.hashkey = final_key
                         event_list.append([trans.rate,j,direc,trans.barrier])
                     except KeyError:
-                        print vol.finalKeys.keys()
                         result, vol = singleNEB(direc,full_depo_index,surface_lattice,j,vol_key,final_key,natoms,vol)
                         if result:
                             if result[2] != "None":
