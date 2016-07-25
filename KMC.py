@@ -20,11 +20,11 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
-jobStatus = 'BEGIN'            # BEGIN or CNTIN run
+jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 4		        # number of initial depositions
+numberDepos = 0		        # number of initial depositions
 total_steps = 50           # total number of steps to run
-latticeOutEvery = 5         # write output lattice every n steps
+latticeOutEvery = 1         # write output lattice every n steps
 volumesOutEvery = 10        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
@@ -74,7 +74,7 @@ class volume(object):
         if direction not in self.directions:
             self.directions.append(direction)
 
-        if finalKey not in self.finalKeys and finalKey != 'None' and finalKey is not None:
+        if finalKey not in self.finalKeys:
             newKey = key()
             newKey.barrier = barrier
             newKey.rate = rate
@@ -761,7 +761,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
 
         # create hashkey for each adatom + store volume
         vol_key = hashkey(lattice_positions,specie_list,volumeAtoms)
-
+        # print vol_key
         try:
             vol = volumes[vol_key]
         except KeyError:
@@ -774,17 +774,18 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
             # vol.hashkey = vol_key
             for direc in vol.directions:
                 final_key = findFinal(direc,j,full_depo_index,surface_positions)
-
-                try:
-                    trans = vol.finalKeys[final_key]
-                    # trans.hashkey = final_key
-                    event_list.append([trans.rate,j,direc,trans.barrier])
-                except KeyError:
-                    result, vol = singleNEB(direc,full_depo_index,surface_lattice,j,vol_key,final_key,natoms,vol)
-                    if result:
-                        if result[2] != "None":
-                            rate = calc_rate(float(result[2]))
-                            event_list.append([rate,j,direc,float(result[2])])
+                if final_key is not None:
+                    try:
+                        trans = vol.finalKeys[final_key]
+                        # trans.hashkey = final_key
+                        event_list.append([trans.rate,j,direc,trans.barrier])
+                    except KeyError:
+                        print vol.finalKeys.keys()
+                        result, vol = singleNEB(direc,full_depo_index,surface_lattice,j,vol_key,final_key,natoms,vol)
+                        if result:
+                            if result[2] != "None":
+                                rate = calc_rate(float(result[2]))
+                                event_list.append([rate,j,direc,float(result[2])])
 
 
         else:
