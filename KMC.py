@@ -22,7 +22,7 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 #- User inputs hard coded in script
 jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 2		        # number of initial depositions
+numberDepos = 1  	        # number of initial depositions
 total_steps = 4           # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 volumesOutEvery = 10        # write out volumes to file every n steps
@@ -38,7 +38,7 @@ IncludeDownTrans = 1        # Booleon: Include transitions down step edges
 StatsOut = False               # Recieve extra information from your run
 useBasin = True            # Booleon: use the basin method or not
 basinBarrierTol = 0.5      # barriers below this are considered in a basin (eV)
-basinDistTol = 0.5         # distance between states to be considered the same state (A)
+basinDistTol = 0.3         # distance between states to be considered the same state (A)
 
 
 # for (0001) ZnO only
@@ -125,28 +125,30 @@ class basin(object):
         i=0
         for i in range(len(self.positions)):
             pos = self.positions[i]
-            if PBC_distance(iniPos[0],pos[0],iniPos[1],pos[1],iniPos[2],pos[2]) < basinDistTol:
+            if PBC_distance(iniPos[0],iniPos[1],iniPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
                 createFlag = 0
                 break
         # if does not exist, add
         if createFlag:
+            i = len(self.positions)
             self.positions.append(iniPos)
-            i+=1
+
 
         j = None
         if not flag:
             # locate final position in basin
             j=0
+            createFlag = 1
             for j in range(len(self.positions)):
                 pos = self.positions[j]
-                if PBC_distance(finPos[0],pos[0],finPos[1],pos[1],finPos[2],pos[2]) < basinDistTol:
+                if PBC_distance(finPos[0],finPos[1],finPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
                     createFlag = 0
                     break
 
             # if does not exist, add
             if createFlag:
+                j = len(self.positions)
                 self.positions.append(finPos)
-                j+=1
 
         trans = [i,j,rate,barrier]
         self.transitionList.append(trans)
@@ -164,11 +166,11 @@ class basin(object):
     # check if position is in this basin
     def thisBasin(self, pos):
         cPos = self.currentPos
-        if PBC_distance(cPos[0],pos[0],cPos[1],pos[1],cPos[2],pos[2]) < basinDistTol:
+        if PBC_distance(cPos[0],cPos[1],cPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
             return True
 
         for bPos in self.positions:
-            if PBC_distance(bPos[0],pos[0],bPos[1],pos[1],bPos[2],pos[2]) < basinDistTol:
+            if PBC_distance(bPos[0],bPos[1],bPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
                 return True
 
         return False
@@ -899,13 +901,13 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                 volumes[vol_key] = vol
 
         del volumeAtoms
-        
+
         if useBasin:
             if not keepBasin:
                 basinList.pop()
-        # else:
-        #     bas.buildConnectivity()
-        #     print bas.connectivity
+            else:
+                bas.buildConnectivity()
+                print bas.connectivity
 
     del lattice_positions
     del adatom_positions
