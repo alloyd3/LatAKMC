@@ -36,7 +36,7 @@ MaxHeight = 30              # Dimension of cell in y direction (A)
 IncludeUpTrans = 0          # Booleon: Include transitions up step edges (turning off speeds up simulation)
 IncludeDownTrans = 1        # Booleon: Include transitions down step edges
 StatsOut = False               # Recieve extra information from your run
-
+useBasin = True            # Booleon: use the basin method or not
 basinBarrierTol = 0.5      # barriers below this are considered in a basin (eV)
 basinDistTol = 0.5         # distance between states to be considered the same state (A)
 
@@ -161,7 +161,7 @@ class basin(object):
             if trans[1] is not None:
                 self.connectivity[trans[0]][trans[1]].append(i)
 
-    # check this position is in the basin
+    # check if position is in this basin
     def thisBasin(self, pos):
         cPos = self.currentPos
         if PBC_distance(cPos[0],pos[0],cPos[1],pos[1],cPos[2],pos[2]) < basinDistTol:
@@ -843,23 +843,24 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
             volumes[vol_key] = volume()
             vol = volumes[vol_key]
 
-        basinExists = False
-        iniPos = [depo_list[1],depo_list[2],depo_list[3]]
-        # check if a basin exists for this state
-        for basId in basinList:
-            if basId.atomNum == j:
-                if basId.thisBasin(iniPos):
-                    bas = basId
-                    basinExists = True
-                    keepBasin = True
-                    break
+        if useBasin:
+            basinExists = False
+            iniPos = [depo_list[1],depo_list[2],depo_list[3]]
+            # check if a basin exists for this state
+            for basId in basinList:
+                if basId.atomNum == j:
+                    if basId.thisBasin(iniPos):
+                        bas = basId
+                        basinExists = True
+                        keepBasin = True
+                        break
 
-        if not basinExists:
-            bas = basin()
-            bas.atomNum = j
-            bas.currentPos = iniPos
-            basinList.append(bas)
-            keepBasin = False
+            if not basinExists:
+                bas = basin()
+                bas.atomNum = j
+                bas.currentPos = iniPos
+                basinList.append(bas)
+                keepBasin = False
 
 
 
@@ -872,9 +873,11 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                     try:
                         trans = vol.finalKeys[final_key]
 
-                        bas.addTransition(iniPos,final_pos,trans.rate,trans.barrier)
-                        if trans.barrier < basinBarrierTol:
-                            keepBasin = True
+                        if useBasin:
+                            bas.addTransition(iniPos,final_pos,trans.rate,trans.barrier)
+                            if trans.barrier < basinBarrierTol:
+                                keepBasin = True
+
                         # trans.hashkey = final_key
                         event_list.append([trans.rate,j,direc,trans.barrier])
                     except KeyError:
@@ -896,9 +899,10 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                 volumes[vol_key] = vol
 
         del volumeAtoms
-
-        if not keepBasin:
-            basinList.pop()
+        
+        if useBasin:
+            if not keepBasin:
+                basinList.pop()
         # else:
         #     bas.buildConnectivity()
         #     print bas.connectivity
