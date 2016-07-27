@@ -73,7 +73,7 @@ class volume(object):
         self.specie = []
         self.volumeAtoms = []
 
-    def addTrans(self, direction, finalKey, barrier, rate):
+    def addTrans(self, direction, finalKey, barrier, rate, reverseBarrier):
         if direction not in self.directions:
             self.directions.append(direction)
 
@@ -81,6 +81,7 @@ class volume(object):
             newKey = key()
             newKey.barrier = barrier
             newKey.rate = rate
+            newKey.reverseBarrier = reverseBarrier
             # newKey.hashkey = finalKey
             self.finalKeys[finalKey] = newKey
 
@@ -102,6 +103,7 @@ class key(object):
     def __init__(self):
         self.barrier = None
         self.rate = None
+        self.reverseBarrier = None
         # self.hashkey = None
 
 class basin(object):
@@ -113,7 +115,8 @@ class basin(object):
         self.connectivity = None
 
     # add transition to basin
-    def addTransition(self,iniPos,finPos,rate,barrier):
+    def addTransition(self,iniPos,finPos,rate,barrier,reverseBarrier):
+    
         # is this an internal event or escaping?
         if barrier < basinBarrierTol:
             flag = 0
@@ -150,8 +153,20 @@ class basin(object):
                 j = len(self.positions)
                 self.positions.append(finPos)
 
+        for k in self.transitionList:
+            if k[0] == i:
+                if k[1] == j:
+                    return
+
         trans = [i,j,rate,barrier]
         self.transitionList.append(trans)
+
+        if not flag:
+            revRate = calc_rate(reverseBarrier)
+            trans = [j,i,revRate,reverseBarrier]
+            self.transitionList.append(trans)
+
+
 
     # build connectivity matrix. All elements are transition numbers
     def buildConnectivity(self):
@@ -162,6 +177,9 @@ class basin(object):
             trans = self.transitionList[i]
             if trans[1] is not None:
                 self.connectivity[trans[0]][trans[1]].append(i)
+
+        for i in range(N):
+            print self.connectivity[i]
 
     # check if position is in this basin
     def thisBasin(self, pos):
@@ -876,7 +894,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                         trans = vol.finalKeys[final_key]
 
                         if useBasin:
-                            bas.addTransition(iniPos,final_pos,trans.rate,trans.barrier)
+                            bas.addTransition(iniPos,final_pos,trans.rate,trans.barrier,trans.reverseBarrier)
                             if trans.barrier < basinBarrierTol:
                                 keepBasin = True
 
@@ -907,7 +925,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                 basinList.pop()
             else:
                 bas.buildConnectivity()
-                print bas.connectivity
+            #     print bas.connectivity
 
     del lattice_positions
     del adatom_positions
@@ -940,6 +958,8 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
     write_lattice_LKMC('/initial',full_depo_index,surface_lattice,natoms)
     ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
     iniMin = copy.deepcopy(ini)
+    iniMin.calcForce(correctTE=1)
+    print "ini energy:", iniMin.totalEnergy
 
     # create cell dimensions
     cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
@@ -1016,6 +1036,9 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
                 fin = Lattice.readLattice(NEB_dir_name_prefac+"/" + str(i) +".dat")
                 finMin = copy.deepcopy(fin)
 
+                finMin.calcForce(correctTE=1)
+                print "fin energy: ", finMin.totalEnergy
+
                 # minimise lattice
                 mini_fin = Minimise.getMinimiser(params)
                 status = mini_fin.run(finMin)
@@ -1030,7 +1053,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
                     print " difference between ini and fin is too small:", maxMove
                     barrier = str("None")
                     results.append([0,atom_index, dir_vector[i], barrier])
-                    vol.addTrans(dir_vector[i], final_key, barrier, 0)
+                    vol.addTrans(dir_vector[i], final_key, barrier, 0, str("None"))
                     continue
 
                 # check max movement
@@ -1046,22 +1069,23 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
                         barrier = str("None")
 
                         results.append([0,atom_index, dir_vector[i], barrier])
-                        vol.addTrans(dir_vector[i], final_key, barrier, 0)
+                        vol.addTrans(dir_vector[i], final_key, barrier, str("None"))
                         continue
 
                     neb.barrier = round(neb.barrier,6)
-
+                    reverseBarrier = round((iniMin.totalEnergy-finMin.totalEnergy)+neb.barrier,6)
+                    print "Reverse barrier: ", reverseBarrier
                     # find final hashkey
                     final_key, _ = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
                     rate = calc_rate(neb.barrier)
                     results.append([rate, atom_index, dir_vector[i], neb.barrier])
-                    vol.addTrans(dir_vector[i], final_key, neb.barrier, rate)
+                    vol.addTrans(dir_vector[i], final_key, neb.barrier, rate, reverseBarrier)
 
                 else:
                     print "WARNING: maxMove too large in final lattice:", maxMove
                     barrier = str("None")
                     results.append([0,atom_index, dir_vector, barrier])
-                    vol.addTrans(dir_vector[i], final_key, barrier, 0)
+                    vol.addTrans(dir_vector[i], final_key, barrier, 0, str("None"))
 
         if results:
             print results
@@ -1127,7 +1151,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 results[0] = map(int,results[0])
                 del ini, iniMin
                 del fin, finMin
-                vol.addTrans(results[0], final_key, barrier, 0)
+                vol.addTrans(results[0], final_key, barrier, 0, str("None"))
                 # add_to_trans_file(hashkey,results)
                 return results, vol
 
@@ -1142,7 +1166,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 results[0] = map(int,results[0])
                 del ini, iniMin
                 del fin, finMin
-                vol.addTrans(results[0], final_key, barrier, 0)
+                vol.addTrans(results[0], final_key, barrier, 0, str("None"))
                 # add_to_trans_file(hashkey,results)
                 return results, vol
 
@@ -1161,17 +1185,19 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                     results[0] = map(int,results[0])
                     del ini, iniMin
                     del fin, finMin
-                    vol.addTrans(results[0], final_key, barrier, 0)
+                    vol.addTrans(results[0], final_key, barrier, 0, str("None"))
                     #add_to_trans_file(hashkey,results)
                     return results, vol
 
                 print neb.barrier
                 barrier = round(neb.barrier,6)
+                reverseBarrier = round((iniMin.totalEnergy-finMin.totalEnergy)+neb.barrier,6)
+                print "Reverse barrier: ", reverseBarrier
 
                 results = [direction, final_key, barrier]
                 results[0] = map(int,results[0])
                 rate = calc_rate(barrier)
-                vol.addTrans(results[0], final_key, barrier, rate)
+                vol.addTrans(results[0], final_key, barrier, rate, reverseBarrier)
                 print direction
             else:
                 print "WARNING: maxMove too large in final lattice"
@@ -1180,7 +1206,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 results[0] = map(int,results[0])
                 del ini, iniMin
                 del fin, finMin
-                vol.addTrans(results[0], final_key, barrier, 0)
+                vol.addTrans(results[0], final_key, barrier, 0, str("None"))
                 #add_to_trans_file(hashkey,results)
                 return results, vol
         else:
@@ -1189,7 +1215,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
             results = [direction, final_key, barrier]
             results[0] = map(int,results[0])
             del ini, iniMin
-            vol.addTrans(results[0], final_key, barrier, 0)
+            vol.addTrans(results[0], final_key, barrier, 0 , str("None"))
             #add_to_trans_file(hashkey,results)
             return results, vol
 
@@ -1218,7 +1244,7 @@ def writeVolumes(volumes):
             direc = volumes[vol].directions[j]
             out.write(str(direc[0])+'\t'+str(direc[1])+'\t'+str(direc[2])+'\n')
         for j, trans in enumerate(volumes[vol].finalKeys):
-            out.write(str(trans)+'\t'+str(volumes[vol].finalKeys[trans].barrier)+'\t'+str(volumes[vol].finalKeys[trans].rate)+'\n')
+            out.write(str(trans)+'\t'+str(volumes[vol].finalKeys[trans].barrier)+'\t'+str(volumes[vol].finalKeys[trans].rate)+'\t'+str(volumes[vol].finalKeys[trans].reverseBarrier)+'\n')
 
     # writeVolAtoms(volumes)
     return
@@ -1265,9 +1291,9 @@ def readVolumes(volumes):
                 if len(line) < 3:
                     break
                 if line[1]!= "None":
-                    vol.addTrans(direc, str(line[0]), float(line[1]), float(line[2]))
+                    vol.addTrans(direc, str(line[0]), float(line[1]), float(line[2]), float(line[3]))
                 else:
-                    vol.addTrans(direc, str(line[0]), str(line[1]), float(0.0))
+                    vol.addTrans(direc, str(line[0]), str(line[1]), float(0.0), str(line[3]))
             volumes[key]=vol
 
     return volumes
