@@ -20,10 +20,10 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
-jobStatus = 'CNTIN'            # BEGIN or CNTIN run
+jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 0		        # number of initial depositions
-total_steps = 50           # total number of steps to run
+numberDepos = 2		        # number of initial depositions
+total_steps = 4           # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 volumesOutEvery = 10        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
@@ -32,14 +32,17 @@ boltzmann = 8.62E-05        # Boltzmann constant (8.62E-05)
 graphRad = 5.9                # graph radius of defect volumes (Angstroms)
 depoRate = 5184            # deposition rate
 maxMoveCriteria = 0.6        # maximum distance an atom can move after relaxation (pre NEB)
-MaxHeight = 30              # Dimension of cell in y direction
+MaxHeight = 30              # Dimension of cell in y direction (A)
 IncludeUpTrans = 0          # Booleon: Include transitions up step edges (turning off speeds up simulation)
 IncludeDownTrans = 1        # Booleon: Include transitions down step edges
-StatsOut = True                # Recieve extra information from your run
+StatsOut = False               # Recieve extra information from your run
+
+basinBarrierTol = 0.5      # barriers below this are considered in a basin (eV)
+basinDistTol = 0.5         # distance between states to be considered the same state (A)
 
 
 # for (0001) ZnO only
-x_grid_dist = 0.9497411251   # distance in x direction between each atom in lattice
+x_grid_dist = 0.9497411251   # distance in x direction between each atom in lattice (A)
 y_grid_dist = 1.55            # distance in y direction between surface and first layer (eg O layer - Ag layer)
 y_grid_dist2 = 2.1             # distance between deposited layers (eg. Ag layer - Ag layer)
 z_grid_dist = 1.6449999809   # distance in z direction between each atom in lattice
@@ -100,6 +103,78 @@ class key(object):
         self.barrier = None
         self.rate = None
         # self.hashkey = None
+
+class basin(object):
+    def __init__(self):
+        self.atomNum = None
+        self.currentPos = None
+        self.positions = []
+        self.transitionList = []
+        self.connectivity = None
+
+    # add transition to basin
+    def addTransition(self,iniPos,finPos,rate,barrier):
+        # is this an internal event or escaping?
+        if barrier < basinBarrierTol:
+            flag = 0
+        else:
+            flag = 1
+
+        # locate initial position in basin
+        createFlag = 1
+        i=0
+        for i in range(len(self.positions)):
+            pos = self.positions[i]
+            if PBC_distance(iniPos[0],pos[0],iniPos[1],pos[1],iniPos[2],pos[2]) < basinDistTol:
+                createFlag = 0
+                break
+        # if does not exist, add
+        if createFlag:
+            self.positions.append(iniPos)
+            i+=1
+
+        j = None
+        if not flag:
+            # locate final position in basin
+            j=0
+            for j in range(len(self.positions)):
+                pos = self.positions[j]
+                if PBC_distance(finPos[0],pos[0],finPos[1],pos[1],finPos[2],pos[2]) < basinDistTol:
+                    createFlag = 0
+                    break
+
+            # if does not exist, add
+            if createFlag:
+                self.positions.append(finPos)
+                j+=1
+
+        trans = [i,j,rate,barrier]
+        self.transitionList.append(trans)
+
+    # build connectivity matrix. All elements are transition numbers
+    def buildConnectivity(self):
+        N = len(self.positions)
+        self.connectivity = [[[] for i in range(N)] for j in range(N)]
+
+        for i in range(len(self.transitionList)):
+            trans = self.transitionList[i]
+            if trans[1] is not None:
+                self.connectivity[trans[0]][trans[1]].append(i)
+
+    # check this position is in the basin
+    def thisBasin(self, pos):
+        cPos = self.currentPos
+        if PBC_distance(cPos[0],pos[0],cPos[1],pos[1],cPos[2],pos[2]) < basinDistTol:
+            return True
+
+        for bPos in self.positions:
+            if PBC_distance(bPos[0],pos[0],bPos[1],pos[1],bPos[2],pos[2]) < basinDistTol:
+                return True
+
+        return False
+
+
+
 
 # calculate the rate of an event given barrier height (Arrhenius eq.)
 def calc_rate(barrier):
@@ -726,9 +801,9 @@ def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
 
         #write_lattice(1000,full_depo_index,surface_lattice,401,0,0)
         del full_depo
-        return final_key
+        return final_key, [float(depo_list[1]),float(depo_list[2]),float(depo_list[3])]
     else:
-        return None
+        return None, None
 
 # create the list of possible events
 def create_events_list(full_depo_index,surface_lattice, volumes):
@@ -768,15 +843,38 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
             volumes[vol_key] = volume()
             vol = volumes[vol_key]
 
+        basinExists = False
+        iniPos = [depo_list[1],depo_list[2],depo_list[3]]
+        # check if a basin exists for this state
+        for basId in basinList:
+            if basId.atomNum == j:
+                if basId.thisBasin(iniPos):
+                    bas = basId
+                    basinExists = True
+                    keepBasin = True
+                    break
+
+        if not basinExists:
+            bas = basin()
+            bas.atomNum = j
+            bas.currentPos = iniPos
+            basinList.append(bas)
+            keepBasin = False
+
+
 
         if len(vol.directions) != 0:
             vol = volumes[vol_key]
             # vol.hashkey = vol_key
             for direc in vol.directions:
-                final_key = findFinal(direc,j,full_depo_index,surface_positions)
+                final_key, final_pos = findFinal(direc,j,full_depo_index,surface_positions)
                 if final_key is not None:
                     try:
                         trans = vol.finalKeys[final_key]
+
+                        bas.addTransition(iniPos,final_pos,trans.rate,trans.barrier)
+                        if trans.barrier < basinBarrierTol:
+                            keepBasin = True
                         # trans.hashkey = final_key
                         event_list.append([trans.rate,j,direc,trans.barrier])
                     except KeyError:
@@ -798,6 +896,12 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                 volumes[vol_key] = vol
 
         del volumeAtoms
+
+        if not keepBasin:
+            basinList.pop()
+        # else:
+        #     bas.buildConnectivity()
+        #     print bas.connectivity
 
     del lattice_positions
     del adatom_positions
@@ -912,7 +1016,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
                 if status:
                     continue
 
-                final_key = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
+                final_key, _ = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
 
                 # check that initial and final are different
                 Index, maxMove, avgMove, Sep = Vectors.maxMovement(iniMin.pos, finMin.pos, cellDims)
@@ -942,7 +1046,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
                     neb.barrier = round(neb.barrier,6)
 
                     # find final hashkey
-                    final_key = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
+                    final_key, _ = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
                     rate = calc_rate(neb.barrier)
                     results.append([rate, atom_index, dir_vector[i], neb.barrier])
                     vol.addTrans(dir_vector[i], final_key, neb.barrier, rate)
@@ -1210,6 +1314,7 @@ surface_positions = []
 startTimeSub = time.time()
 CurrentStep = 0
 volumes = {}
+basinList = []
 
 print "="*80
 print "~~~~~~~~ Starting lattice KMC ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
