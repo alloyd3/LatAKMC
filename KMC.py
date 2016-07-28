@@ -23,7 +23,7 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 1  	        # number of initial depositions
-total_steps = 4           # total number of steps to run
+total_steps = 2           # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 volumesOutEvery = 10        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
@@ -247,6 +247,79 @@ class basin(object):
 
         return False
 
+    # calculate mean rates within the basin
+    def meanRate(self):
+        result = []
+        stateNum = 0
+        stateMapping = []
+        for i in range(len(self.basinPos)):
+            if self.basinPos[i].explored:
+                stateNum +=1
+                stateMapping.append(i)
+
+        if stateNum == 1:
+            return result
+
+        transMatrix = np.zeros([stateNum, stateNum])
+        tao1 = np.zeros(stateNum, np.float64)
+        transNum = np.zeros(stateNum,dtype=np.int)
+        for j in range(stateNum):
+            transNum[j] = len(self.basinPos[stateMapping[j]].transitionList)
+            sum = 0.0
+            for i in range(transNum[j]):
+                sum += self.basinPos[stateMapping[j]].transitionList[i].rate
+            if sum == 0.0:
+                print "Error: Sum of rates for State %d (%d trans) is zero!"%(j, transNum[j])
+                return result
+            tao1[j] = 1 / sum
+
+        for i in range(stateNum):
+            for j in range(stateNum):
+                for k in self.connectivity[stateMapping[i]][stateMapping[j]]:
+                    transMatrix[j][i] += tao1[i] * self.basinPos[stateMapping[i]].transitionList[k].rate
+
+
+
+        for k in range(len(self.basinPos)):
+            q = self.basinPos[k]
+            if PBC_distance(q.iniPos[0],q.iniPos[1],q.iniPos[2],self.currentPos[0],self.currentPos[1],self.currentPos[2]) < basinDistTol:
+                startDV = k
+                break
+
+        occupVect0 = np.zeros(stateNum)
+        occupVect0[startDV] = 1.0
+
+        matrix2bInv = np.matrix(np.identity(stateNum)) - transMatrix
+        try:
+            occupVect = np.linalg.inv(matrix2bInv)
+        except np.linalg.LinAlgError:
+            print "Error: Transition Matrix not invertible."
+            return None
+        occupVect = np.inner(occupVect, occupVect0)
+        occupVect = np.squeeze(np.asarray(occupVect))
+
+        tao = np.zeros(stateNum, np.float64)
+        taoSum = 0.0
+        for j in range(stateNum):
+            tao[j] = tao1[j] * occupVect[j]
+            taoSum += tao[j]
+
+
+        negRate = False
+        for i in range(stateNum):
+            for j in range(transNum[i]):
+                finalDV = self.basinPos[stateMapping[i]].transitionList[j].finRef
+                if finalDV is not None:
+                    if self.basinPos[finalDV].explored:
+                        result.append(0.0)
+                else:
+                    localRate = tao[i]/taoSum*self.basinPos[stateMapping[i]].transitionList[j].rate
+                    result.append(localRate)
+                    if localRate < 0.0:
+                        print "WARNING: get a negative mean rate!! %r"%localRate
+                        negRate = True
+
+        print "Mean rate results: ", result
 
 
 
@@ -953,13 +1026,13 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                                 keepBasin = True
 
                         # trans.hashkey = final_key
-                        event_list.append([trans.rate,j,direc,trans.barrier])
+                        event_list.append([trans.rate,j,final_pos,trans.barrier])
                     except KeyError:
                         result, vol = singleNEB(direc,full_depo_index,surface_lattice,j,vol_key,final_key,natoms,vol)
                         if result:
                             if result[2] != "None":
                                 rate = calc_rate(float(result[2]))
-                                event_list.append([rate,j,direc,float(result[2])])
+                                event_list.append([rate,j,final_pos,float(result[2])])
 
 
         else:
@@ -979,6 +1052,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                 basinList.pop()
             else:
                 bas.buildConnectivity()
+                bas.meanRate()
             #     print bas.connectivity
 
     del lattice_positions
@@ -1099,14 +1173,14 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
                 if status:
                     continue
 
-                final_key, _ = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
+                final_key, final_pos = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
 
                 # check that initial and final are different
                 Index, maxMove, avgMove, Sep = Vectors.maxMovement(iniMin.pos, finMin.pos, cellDims)
                 if maxMove < 0.4:
                     print " difference between ini and fin is too small:", maxMove
                     barrier = str("None")
-                    results.append([0,atom_index, dir_vector[i], barrier])
+                    results.append([0,atom_index, final_pos, barrier])
                     vol.addTrans(dir_vector[i], final_key, barrier, 0, str("None"))
                     continue
 
@@ -1122,7 +1196,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
                         print "Try changing parameters in lkmcInput.IN"
                         barrier = str("None")
 
-                        results.append([0,atom_index, dir_vector[i], barrier])
+                        results.append([0,atom_index, final_pos, barrier])
                         vol.addTrans(dir_vector[i], final_key, barrier, str("None"))
                         continue
 
@@ -1132,13 +1206,13 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
                     # find final hashkey
                     final_key, _ = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
                     rate = calc_rate(neb.barrier)
-                    results.append([rate, atom_index, dir_vector[i], neb.barrier])
+                    results.append([rate, atom_index, final_pos, neb.barrier])
                     vol.addTrans(dir_vector[i], final_key, neb.barrier, rate, reverseBarrier)
 
                 else:
                     print "WARNING: maxMove too large in final lattice:", maxMove
                     barrier = str("None")
-                    results.append([0,atom_index, dir_vector, barrier])
+                    results.append([0,atom_index, final_pos, barrier])
                     vol.addTrans(dir_vector[i], final_key, barrier, 0, str("None"))
 
         if results:
@@ -1575,15 +1649,8 @@ while CurrentStep < (total_steps + 1):
     # do move
     else:
         while index < (CurrentStep+1):
-            moved_list =[]
-            move_atom_index = chosenAtom
-            direction_index = chosenEvent
-            moved_list = move_atom(full_depo_list[move_atom_index], direction_index, full_depo_list)
-            if moved_list:
-                # print "pre move position: ", full_depo_list[move_atom_index]
-                # print "post move position: ", moved_list
-                full_depo_list[move_atom_index] = moved_list
-                index += 1
+            full_depo_list[chosenAtom] = [full_depo_list[chosenAtom][0], chosenEvent[0],chosenEvent[1],chosenEvent[2],full_depo_list[chosenAtom][4]]
+            index += 1
         CurrentStep += 1
 
 
