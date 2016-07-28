@@ -30,14 +30,14 @@ temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
 boltzmann = 8.62E-05        # Boltzmann constant (8.62E-05)
 graphRad = 5.9                # graph radius of defect volumes (Angstroms)
-depoRate = 5184            # deposition rate
+depoRate = 1            # deposition rate
 maxMoveCriteria = 0.6        # maximum distance an atom can move after relaxation (pre NEB)
 MaxHeight = 30              # Dimension of cell in y direction (A)
 IncludeUpTrans = 0          # Booleon: Include transitions up step edges (turning off speeds up simulation)
 IncludeDownTrans = 1        # Booleon: Include transitions down step edges
 StatsOut = False               # Recieve extra information from your run
 useBasin = True            # Booleon: use the basin method or not
-basinBarrierTol = 0.5      # barriers below this are considered in a basin (eV)
+basinBarrierTol = 0.7      # barriers below this are considered in a basin (eV)
 basinDistTol = 0.3         # distance between states to be considered the same state (A)
 
 
@@ -106,80 +106,133 @@ class key(object):
         self.reverseBarrier = None
         # self.hashkey = None
 
+# transition object for the basin
+class basinTransition(object):
+    def __init__(self,finPos,rate,barrier,reverseBarrier):
+        self.finPos = finPos
+        self.rate = rate
+        self.barrier = barrier
+        self.reverseBarrier = reverseBarrier
+        self.finRef = None
+
+# basinPosition object for basinPos list (similar to basin DV in LAKMC)
+class basinPosition(object):
+    def __init__(self):
+        self.transitionList = []
+        self.explored = 0
+        self.iniPos = None
+
+# basin type object
 class basin(object):
     def __init__(self):
         self.atomNum = None
         self.currentPos = None
         self.positions = []
+        self.basinPos = []
+        self.exploredList = []
         self.transitionList = []
         self.connectivity = None
 
     # add transition to basin
     def addTransition(self,iniPos,finPos,rate,barrier,reverseBarrier):
-    
         # is this an internal event or escaping?
         if barrier < basinBarrierTol:
             flag = 0
         else:
             flag = 1
 
-        # locate initial position in basin
-        createFlag = 1
+        createFlagF = 1
         i=0
-        for i in range(len(self.positions)):
-            pos = self.positions[i]
+        # check if initial position exists in the basin
+        for i in range(len(self.basinPos)):
+            pos = self.basinPos[i].iniPos
             if PBC_distance(iniPos[0],iniPos[1],iniPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
-                createFlag = 0
+                createFlagF = 0
                 break
         # if does not exist, add
-        if createFlag:
-            i = len(self.positions)
-            self.positions.append(iniPos)
+        if createFlagF:
+            i = len(self.basinPos)
+            newTrans = basinTransition(finPos,rate,barrier,reverseBarrier)
+            newPos = basinPosition()
+            newPos.explored = 1
+            newPos.iniPos = iniPos
+            newPos.transitionList.append(newTrans)
+            self.basinPos.append(newPos)
+        else:
+            # check if this transition already exists in the basin
+            createFlagF = 1
+            for trans in self.basinPos[i].transitionList:
+                if PBC_distance(finPos[0],finPos[1],finPos[2],trans.finPos[0],trans.finPos[1],trans.finPos[2]) < basinDistTol:
+                    createFlagF = 0
+            # if not, add transition
+            if createFlagF:
+                newTrans = basinTransition(finPos,rate,barrier,reverseBarrier)
+                self.basinPos[i].transitionList.append(newTrans)
+                self.basinPos[i].explored = 1
 
 
-        j = None
+        # if non escaping transition, add reverse transition
         if not flag:
             # locate final position in basin
             j=0
             createFlag = 1
-            for j in range(len(self.positions)):
-                pos = self.positions[j]
+            # check final position exists in the basin
+            for j in range(len(self.basinPos)):
+                pos = self.basinPos[j].iniPos
                 if PBC_distance(finPos[0],finPos[1],finPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
                     createFlag = 0
                     break
 
             # if does not exist, add
             if createFlag:
-                j = len(self.positions)
-                self.positions.append(finPos)
+                j = len(self.basinPos)
+                revRate = calc_rate(reverseBarrier)
+                newTransR = basinTransition(iniPos,revRate,reverseBarrier,barrier)
+                newTransR.finRef = i
+                newPosR = basinPosition()
+                newPosR.explored = 0
+                newPosR.iniPos = finPos
+                newPosR.transitionList.append(newTransR)
+                self.basinPos.append(newPosR)
+            else:
+                # check transition exists in the basin
+                createFlag = 1
+                for trans in self.basinPos[j].transitionList:
+                    if PBC_distance(iniPos[0],iniPos[1],iniPos[2],trans.finPos[0],trans.finPos[1],trans.finPos[2]) < basinDistTol:
+                        createFlag = 0
+                # add transition if not
+                if createFlag:
+                    newTransR = basinTransition(finPos,rate,barrier,reverseBarrier)
+                    newTransR.finRef = i
+                    self.basinPos[j].transitionList.append(newTransR)
 
-        for k in self.transitionList:
-            if k[0] == i:
-                if k[1] == j:
-                    return
-
-        trans = [i,j,rate,barrier]
-        self.transitionList.append(trans)
-
-        if not flag:
-            revRate = calc_rate(reverseBarrier)
-            trans = [j,i,revRate,reverseBarrier]
-            self.transitionList.append(trans)
-
-
+            # assign ref to positions
+            if createFlagF:
+                self.basinPos[i].transitionList[-1].finRef = j
+                print "Adding transition: ",i,j
 
     # build connectivity matrix. All elements are transition numbers
     def buildConnectivity(self):
-        N = len(self.positions)
+        N = len(self.basinPos)
         self.connectivity = [[[] for i in range(N)] for j in range(N)]
 
-        for i in range(len(self.transitionList)):
-            trans = self.transitionList[i]
-            if trans[1] is not None:
-                self.connectivity[trans[0]][trans[1]].append(i)
+        # create connectivity matrix
+        for i in range(len(self.basinPos)):
+            pos = self.basinPos[i]
+            for j in range(len(pos.transitionList)):
+                trans = pos.transitionList[j]
+                if trans.finRef is not None:
+                    self.connectivity[i][trans.finRef].append(j)
 
+        print "Connectivity matrix:"
         for i in range(N):
             print self.connectivity[i]
+
+        explor = []
+        for i in range(N):
+            explor.append(self.basinPos[i].explored)
+        print explor
+
 
     # check if position is in this basin
     def thisBasin(self, pos):
@@ -187,7 +240,8 @@ class basin(object):
         if PBC_distance(cPos[0],cPos[1],cPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
             return True
 
-        for bPos in self.positions:
+        for basPos in self.basinPos:
+            bPos = basPos.iniPos
             if PBC_distance(bPos[0],bPos[1],bPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
                 return True
 
