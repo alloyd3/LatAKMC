@@ -22,8 +22,8 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 #- User inputs hard coded in script
 jobStatus = 'BEGIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 1  	        # number of initial depositions
-total_steps = 2           # total number of steps to run
+numberDepos = 2  	        # number of initial depositions
+total_steps = 3           # total number of steps to run
 latticeOutEvery = 1         # write output lattice every n steps
 volumesOutEvery = 10        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
@@ -37,7 +37,7 @@ IncludeUpTrans = 0          # Booleon: Include transitions up step edges (turnin
 IncludeDownTrans = 1        # Booleon: Include transitions down step edges
 StatsOut = False               # Recieve extra information from your run
 useBasin = True            # Booleon: use the basin method or not
-basinBarrierTol = 0.7      # barriers below this are considered in a basin (eV)
+basinBarrierTol = 0.3      # barriers below this are considered in a basin (eV)
 basinDistTol = 0.3         # distance between states to be considered the same state (A)
 
 
@@ -136,7 +136,7 @@ class basin(object):
     # add transition to basin
     def addTransition(self,iniPos,finPos,rate,barrier,reverseBarrier):
         # is this an internal event or escaping?
-        if barrier < basinBarrierTol:
+        if barrier < basinBarrierTol or reverseBarrier < basinBarrierTol:
             flag = 0
         else:
             flag = 1
@@ -209,7 +209,7 @@ class basin(object):
             # assign ref to positions
             if createFlagF:
                 self.basinPos[i].transitionList[-1].finRef = j
-                print "Adding transition: ",i,j
+                # print "Adding transition: ",i,j
 
     # build connectivity matrix. All elements are transition numbers
     def buildConnectivity(self):
@@ -231,7 +231,7 @@ class basin(object):
         explor = []
         for i in range(N):
             explor.append(self.basinPos[i].explored)
-        print explor
+        print "Explored states: ", explor
 
 
     # check if position is in this basin
@@ -1066,7 +1066,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
 
                         if useBasin:
                             bas.addTransition(iniPos,final_pos,trans.rate,trans.barrier,trans.reverseBarrier)
-                            if trans.barrier < basinBarrierTol:
+                            if trans.barrier < basinBarrierTol or trans.reverseBarrier < basinBarrierTol:
                                 keepBasin = True
 
                         # trans.hashkey = final_key
@@ -1076,13 +1076,19 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                         if result:
                             if result[2] != "None":
                                 rate = calc_rate(float(result[2]))
-                                event_list.append([rate,j,final_pos,float(result[2])])
+                                bas.addTransition(iniPos,final_pos,rate,float(result[2]),vol.finalKeys[final_key].reverseBarrier)
+                                if float(result[2]) < basinBarrierTol or vol.finalKeys[final_key].reverseBarrier < basinBarrierTol:
+                                    keepBasin = True
+                                # event_list.append([rate,j,final_pos,float(result[2])])
 
 
         else:
             print "Cannot find volume transitions. Doing searches now ", vol_key
             # do searches on volume and save to new trans file
-            status, result, vol = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms,vol)
+            if useBasin:
+                status, result, vol, keepBasin = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms,vol,bas)
+            else:
+                status, result, vol, _ = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms,vol,None)
             if status:
                 break
             else:
@@ -1122,12 +1128,14 @@ def add_to_events(final_keys,hashkey,barrier,index,directions,hashkeyExists):
 
 
 # run NEB to find barriers that are not known
-def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
+def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
     print "AUTO NEB", "="*60
 
     barrier = []
     final_keys = []
     results = []
+
+    keepBasin = False
 
     # create initial lattice
     write_lattice_LKMC('/initial',full_depo_index,surface_lattice,natoms)
@@ -1251,10 +1259,19 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
                     reverseBarrier = round((iniMin.totalEnergy-finMin.totalEnergy)+neb.barrier,6)
                     print "Reverse barrier: ", reverseBarrier
                     # find final hashkey
-                    final_key, _ = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
+                    final_key, final_pos = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
                     rate = calc_rate(neb.barrier)
                     results.append([rate, atom_index, final_pos, neb.barrier])
                     vol.addTrans(dir_vector[i], final_key, neb.barrier, rate, reverseBarrier)
+
+                    # add result to basin
+                    if useBasin:
+                        iniPos = copy.copy(full_depo_index[atom_index])
+                        iniPos.pop(0)
+                        iniPos.pop()
+                        bas.addTransition(iniPos,final_pos,rate,neb.barrier,reverseBarrier)
+                        if neb.barrier < basinBarrierTol or reverseBarrier < basinBarrierTol :
+                            keepBasin = True
 
                 else:
                     print "WARNING: maxMove too large in final lattice:", maxMove
@@ -1265,7 +1282,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
         if results:
             print results
             #write_trans_file(hashkey,results)
-            return 0, results, vol;
+            return 0, results, vol, keepBasin;
     else:
         print "WARNING: maxMove too large in initial lattice"
         sys.exit()
@@ -1274,7 +1291,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol):
     del fin, finMin
     del Sep
 
-    return 1, results, vol;
+    return 1, results, vol, keepBasin;
 
 # do a single NEB and add transition to trans files
 def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final_key,natoms, vol):
@@ -1632,10 +1649,10 @@ if jobStatus == 'CNTIN':
 
 # do initial consecutive depositions
 while CurrentStep < (numberDepos):
-    print "Current Step: ", CurrentStep
     depo_list = []
     depo_list = deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_list,natoms)
     if depo_list:
+        print "Current Step: ", CurrentStep
         natoms = depo_list[4]
         full_depo_list.append(depo_list)
         write_lattice(CurrentStep,full_depo_list,surface_lattice,natoms,0,0)
