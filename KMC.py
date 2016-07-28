@@ -20,24 +20,25 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 
 #------------------------------------------------------------------------------
 #- User inputs hard coded in script
-jobStatus = 'BEGIN'            # BEGIN or CNTIN run
+jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 2  	        # number of initial depositions
-total_steps = 3           # total number of steps to run
-latticeOutEvery = 1         # write output lattice every n steps
+numberDepos = 0  	        # number of initial depositions
+total_steps = 5000           # total number of steps to run
+latticeOutEvery = 5         # write output lattice every n steps
 volumesOutEvery = 10        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
 boltzmann = 8.62E-05        # Boltzmann constant (8.62E-05)
 graphRad = 5.9                # graph radius of defect volumes (Angstroms)
-depoRate = 1            # deposition rate
+depoRate = 1200            # deposition rate
 maxMoveCriteria = 0.6        # maximum distance an atom can move after relaxation (pre NEB)
 MaxHeight = 30              # Dimension of cell in y direction (A)
 IncludeUpTrans = 0          # Booleon: Include transitions up step edges (turning off speeds up simulation)
 IncludeDownTrans = 1        # Booleon: Include transitions down step edges
 StatsOut = False               # Recieve extra information from your run
 useBasin = True            # Booleon: use the basin method or not
-basinBarrierTol = 0.3      # barriers below this are considered in a basin (eV)
+basinBarrierTol = 0.18      # barriers below this are considered in a basin (eV)
+basinBarrierSubTol = 0.40   # if one barrier is above this, it is considered an escaping transition not internal
 basinDistTol = 0.3         # distance between states to be considered the same state (A)
 
 
@@ -136,8 +137,11 @@ class basin(object):
     # add transition to basin
     def addTransition(self,iniPos,finPos,rate,barrier,reverseBarrier):
         # is this an internal event or escaping?
-        if barrier < basinBarrierTol or reverseBarrier < basinBarrierTol:
-            flag = 0
+        if barrier < basinBarrierSubTol and reverseBarrier < basinBarrierSubTol:
+            if barrier < basinBarrierTol or reverseBarrier < basinBarrierTol:
+                flag = 0
+            else:
+                flag = 1
         else:
             flag = 1
 
@@ -224,14 +228,14 @@ class basin(object):
                 if trans.finRef is not None:
                     self.connectivity[i][trans.finRef].append(j)
 
-        print "Connectivity matrix:"
-        for i in range(N):
-            print self.connectivity[i]
+        # print "Connectivity matrix for atom %d:" % self.atomNum
+        # for i in range(N):
+        #     print self.connectivity[i]
 
-        explor = []
-        for i in range(N):
-            explor.append(self.basinPos[i].explored)
-        print "Explored states: ", explor
+        # explor = []
+        # for i in range(N):
+        #     explor.append(self.basinPos[i].explored)
+        # print "Explored states: ", explor
 
 
     # check if position is in this basin
@@ -331,9 +335,10 @@ class basin(object):
     # if basin is being deleted, create normal event list
     def addUnchangedEvents(self,atomNum):
         event_list = []
-        for trans in self.basinPos[0].transitionList:
-            event = [trans.rate,atomNum,trans.finPos,trans.barrier]
-            event_list.append(event)
+        if len(self.basinPos):
+            for trans in self.basinPos[0].transitionList:
+                event = [trans.rate,atomNum,trans.finPos,trans.barrier]
+                event_list.append(event)
 
         return event_list
 
@@ -579,7 +584,7 @@ def deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_index,natoms):
         	# print "deposited on top of surface Oxygen: unstable position"
         	return None
         # if nlist[0] == 'Zn':
-        # 	print "deposited on top of surface Oxygen: unstable position"
+        # 	# print "deposited on top of surface Zinc: unstable position"
         # 	return None
 
 
@@ -1038,7 +1043,8 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
             basinExists = False
             iniPos = [depo_list[1],depo_list[2],depo_list[3]]
             # check if a basin exists for this state
-            for basId in basinList:
+            for whichB in range(len(basinList)):
+                basId = basinList[whichB]
                 if basId.atomNum == j:
                     if basId.thisBasin(iniPos):
                         bas = basId
@@ -1051,6 +1057,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                 bas.atomNum = j
                 bas.currentPos = iniPos
                 basinList.append(bas)
+                whichB = len(basinList)-1
                 keepBasin = False
 
 
@@ -1106,6 +1113,8 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                 bas.buildConnectivity()
                 events = bas.addChangedEvents(j)
                 event_list = event_list + events
+                if len(bas.basinPos) < 2:
+                    basinList.pop(whichB)
 
 
     del lattice_positions
@@ -1142,7 +1151,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
     ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
     iniMin = copy.deepcopy(ini)
     iniMin.calcForce(correctTE=1)
-    print "ini energy:", iniMin.totalEnergy
+    # print "ini energy:", iniMin.totalEnergy
 
     # create cell dimensions
     cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
@@ -1220,7 +1229,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
                 finMin = copy.deepcopy(fin)
 
                 finMin.calcForce(correctTE=1)
-                print "fin energy: ", finMin.totalEnergy
+                # print "fin energy: ", finMin.totalEnergy
 
                 # minimise lattice
                 mini_fin = Minimise.getMinimiser(params)
@@ -1663,10 +1672,6 @@ print "-" * 80
 print "Number of initial adatoms: " , len(full_depo_list)
 index = CurrentStep
 
-# store previous 2 list of positions and events
-full_depo_list1 = [0,0]
-full_depo_list2 = [0,0]
-
 
 # ============================================================================
 # ================== do KMC run ==============================================
@@ -1678,15 +1683,7 @@ while CurrentStep < (total_steps + 1):
     print "Current Step: ", CurrentStep
 
     # check if in same position as 2 steps ago
-    if full_depo_list != full_depo_list2[1]:
-        event_list, volumes = create_events_list(full_depo_list,surface_lattice, volumes)
-    else:
-        # do quick reuse
-        event_list = full_depo_list2[0]
-
-    full_depo_list2 = copy.deepcopy(full_depo_list1)
-    full_depo_list1[1] = copy.deepcopy(full_depo_list)
-    full_depo_list1[0] = copy.deepcopy(event_list)
+    event_list, volumes = create_events_list(full_depo_list,surface_lattice, volumes)
 
     # write out volumes file
     if CurrentStep%volumesOutEvery == 0 or CurrentStep == total_steps:
@@ -1742,6 +1739,7 @@ print "="*80
 FinalTimeSub = time.time() - startTimeSub
 print "Time: ", FinalTimeSub
 print "Average Time per step: ", FinalTimeSub/CurrentStep
+print "Number of basins: ", len(basinList)
 
 if StatsOut:
     if (os.path.isfile(statsFile)):
