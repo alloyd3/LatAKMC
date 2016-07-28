@@ -312,6 +312,8 @@ class basin(object):
                 if finalDV is not None:
                     if self.basinPos[finalDV].explored:
                         result.append(0.0)
+                    else:
+                        result.append(self.basinPos[stateMapping[i]].transitionList[j].rate)
                 else:
                     localRate = tao[i]/taoSum*self.basinPos[stateMapping[i]].transitionList[j].rate
                     result.append(localRate)
@@ -321,7 +323,49 @@ class basin(object):
 
         print "Mean rate results: ", result
 
+        if not negRate:
+            return result
+        else:
+            return None
 
+    # if basin is being deleted, create normal event list
+    def addUnchangedEvents(self,atomNum):
+        event_list = []
+        for trans in self.basinPos[0].transitionList:
+            event = [trans.rate,atomNum,trans.finPos,trans.barrier]
+            event_list.append(event)
+
+        return event_list
+
+    # update rates within the basin and create new events
+    def addChangedEvents(self,atomNum):
+        event_list = []
+        result = self.meanRate()
+
+        if len(result):
+            k=0
+            for i in range(len(self.basinPos)):
+                if self.basinPos[i].explored:
+                    for j in range(len(self.basinPos[i].transitionList)):
+                        trans = self.basinPos[i].transitionList[j]
+                        newRate = result[k]
+                        event = [newRate,atomNum,trans.finPos,trans.barrier]
+                        event_list.append(event)
+                        k += 1
+                else:
+                    for j in range(len(self.basinPos[i].transitionList)):
+                        trans = self.basinPos[i].transitionList[j]
+                        event = [trans.rate,atomNum,trans.finPos,trans.barrier]
+                        event_list.append(event)
+        else:
+            for i in range(len(self.basinPos)):
+                if self.basinPos[i].explored:
+                    for j in range(len(self.basinPos[i].transitionList)):
+                        trans = self.basinPos[i].transitionList[j]
+                        event = [trans.rate,atomNum,trans.finPos,trans.barrier]
+                        event_list.append(event)
+
+        return event_list
 
 # calculate the rate of an event given barrier height (Arrhenius eq.)
 def calc_rate(barrier):
@@ -524,15 +568,15 @@ def deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_index,natoms):
         y_coord += y_grid_dist2
 
 
-    print "Trying to deposit %s atom at %f, %f, %f" % (atom_species, x_coord, y_coord, z_coord)
+    # print "Trying to deposit %s atom at %f, %f, %f" % (atom_species, x_coord, y_coord, z_coord)
     #print nlist
     if len(maxAg) != 3:
         for x in nlist:
             if x == 'Ag':
-                print "deposited near Ag, redo deposition"
+                # print "deposited near Ag, redo deposition"
                 return None
         if nlist[0] == 'O_':
-        	print "deposited on top of surface Oxygen: unstable position"
+        	# print "deposited on top of surface Oxygen: unstable position"
         	return None
         # if nlist[0] == 'Zn':
         # 	print "deposited on top of surface Oxygen: unstable position"
@@ -1026,7 +1070,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                                 keepBasin = True
 
                         # trans.hashkey = final_key
-                        event_list.append([trans.rate,j,final_pos,trans.barrier])
+                        # event_list.append([trans.rate,j,final_pos,trans.barrier])
                     except KeyError:
                         result, vol = singleNEB(direc,full_depo_index,surface_lattice,j,vol_key,final_key,natoms,vol)
                         if result:
@@ -1049,11 +1093,14 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
 
         if useBasin:
             if not keepBasin:
+                events = bas.addUnchangedEvents(j)
+                event_list = event_list + events
                 basinList.pop()
             else:
                 bas.buildConnectivity()
-                bas.meanRate()
-            #     print bas.connectivity
+                events = bas.addChangedEvents(j)
+                event_list = event_list + events
+
 
     del lattice_positions
     del adatom_positions
