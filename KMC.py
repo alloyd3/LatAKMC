@@ -303,14 +303,17 @@ class basin(object):
 
 
 
-        for k in range(len(self.basinPos)):
+        for k in stateMapping:
             q = self.basinPos[k]
             if PBC_distance(q.iniPos[0],q.iniPos[1],q.iniPos[2],self.currentPos[0],self.currentPos[1],self.currentPos[2]) < basinDistTol:
                 startDV = k
                 break
 
         occupVect0 = np.zeros(stateNum)
-        occupVect0[startDV] = 1.0
+        try:
+            occupVect0[startDV] = 1.0
+        except IndexError:
+            occupVect0[0] = 1.0
 
         matrix2bInv = np.matrix(np.identity(stateNum)) - transMatrix
         try:
@@ -1287,7 +1290,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
                         barrier = str("None")
 
                         results.append([0,atom_index, final_pos, barrier])
-                        vol.addTrans(dir_vector[i], final_key, barrier, str("None"))
+                        vol.addTrans(dir_vector[i], final_key, barrier, str("None"),str("None"))
                         continue
 
                     neb.barrier = round(neb.barrier,6)
