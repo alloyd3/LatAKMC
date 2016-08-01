@@ -37,7 +37,7 @@ IncludeUpTrans = 0          # Booleon: Include transitions up step edges (turnin
 IncludeDownTrans = 1        # Booleon: Include transitions down step edges
 StatsOut = False               # Recieve extra information from your run
 useBasin = True            # Booleon: use the basin method or not
-basinBarrierTol = 0.20      # barriers below this are considered in a basin (eV)
+basinBarrierTol = 0.21      # barriers below this are considered in a basin (eV)
 basinBarrierSubTol = 0.40   # if one barrier is above this, it is considered an escaping transition not internal
 basinDistTol = 0.3         # distance between states to be considered the same state (A)
 
@@ -250,7 +250,7 @@ class basin(object):
 
 
     # check if position is in this basin
-    def thisBasin(self, pos):
+    def thisBasin(self, pos, step):
         # cPos = self.currentPos
         # if PBC_distance(cPos[0],cPos[1],cPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
         #     return True
@@ -258,13 +258,16 @@ class basin(object):
         for basPos in self.basinPos:
             bPos = basPos.iniPos
             if PBC_distance(bPos[0],bPos[1],bPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
+                # self.basinReport(step)
                 return True
 
         for basPos in self.basinPos:
             for trans in basPos.transitionList:
                 tPos = trans.finPos
                 if PBC_distance(tPos[0],tPos[1],tPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
+                    # print "pos: ", pos, "CurrentPos: ", self.currentPos
                     print "MATCH MADE WITH FINAL POS"
+                    # self.basinReport(step)
 
         return False
 
@@ -399,6 +402,21 @@ class basin(object):
                         event_list.append(event)
 
         return event_list
+
+    def basinReport(self,index):
+
+        report = initial_dir + "/BasinAtom"+str(self.atomNum)+"Step"+str(index) + '.txt'
+        outf = open(report, 'w')
+        outf.write("Number of states in basin: "+str(len(self.basinPos))+"\n")
+        for i in range(len(self.connectivity)):
+            outf.write(str(self.connectivity[i])+"\n")
+        for i in range(len(self.basinPos)):
+            outf.write("State " + str(i)+  "\t position " + str(self.basinPos[i].iniPos) + "\n")
+            for j in range(len(self.basinPos[i].transitionList)):
+                trans = self.basinPos[i].transitionList[j]
+                outf.write("\t Trans " + str(j) + "\t final position " + str(trans.finPos) + "\t Barrier " + str(trans.barrier)+"\t RevBarrier " + str(trans.reverseBarrier)+ "\n")
+
+        outf.close()
 
 # calculate the rate of an event given barrier height (Arrhenius eq.)
 def calc_rate(barrier):
@@ -1074,7 +1092,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
             for whichB in range(len(basinList)):
                 basId = basinList[whichB]
                 if basId.atomNum == j:
-                    if basId.thisBasin(iniPos):
+                    if basId.thisBasin(iniPos,CurrentStep):
                         bas = basId
                         bas.currentPos = iniPos
                         basinExists = True
@@ -1734,6 +1752,8 @@ while CurrentStep < (total_steps + 1):
                 natoms = depo_list[4]
                 full_depo_list.append(depo_list)
                 index += 1
+                # delete basins if deposition occurs
+                basinList = []
         CurrentStep += 1
 
     # do move
