@@ -23,7 +23,7 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 0  	        # number of initial depositions
-total_steps = 5000           # total number of steps to run
+total_steps = 6000           # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 volumesOutEvery = 10        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
@@ -37,7 +37,7 @@ IncludeUpTrans = 0          # Booleon: Include transitions up step edges (turnin
 IncludeDownTrans = 1        # Booleon: Include transitions down step edges
 StatsOut = False               # Recieve extra information from your run
 useBasin = True            # Booleon: use the basin method or not
-basinBarrierTol = 0.18      # barriers below this are considered in a basin (eV)
+basinBarrierTol = 0.20      # barriers below this are considered in a basin (eV)
 basinBarrierSubTol = 0.40   # if one barrier is above this, it is considered an escaping transition not internal
 basinDistTol = 0.3         # distance between states to be considered the same state (A)
 
@@ -131,7 +131,7 @@ class basin(object):
         self.positions = []
         self.basinPos = []
         self.exploredList = []
-        self.transitionList = []
+        # self.transitionList = []
         self.connectivity = None
 
     # add transition to basin
@@ -157,6 +157,7 @@ class basin(object):
         if createFlagF:
             i = len(self.basinPos)
             newTrans = basinTransition(finPos,rate,barrier,reverseBarrier)
+            newTrans.finRef = None
             newPos = basinPosition()
             newPos.explored = 1
             newPos.iniPos = iniPos
@@ -171,6 +172,7 @@ class basin(object):
             # if not, add transition
             if createFlagF:
                 newTrans = basinTransition(finPos,rate,barrier,reverseBarrier)
+                newTrans.finRef = None
                 self.basinPos[i].transitionList.append(newTrans)
                 self.basinPos[i].explored = 1
 
@@ -223,15 +225,24 @@ class basin(object):
         # create connectivity matrix
         for i in range(len(self.basinPos)):
             pos = self.basinPos[i]
+            cPos = self.currentPos
+            if PBC_distance(pos.iniPos[0],pos.iniPos[1],pos.iniPos[2],cPos[0],cPos[1],cPos[2]) < basinDistTol:
+                cDV = i
             for j in range(len(pos.transitionList)):
                 trans = pos.transitionList[j]
+                # if trans.barrier is not None and trans.barrier != 'None':
+                # print trans.barrier, pos.iniPos, trans.finRef
+                # if trans.finRef is not None:
+                #     print self.basinPos[trans.finRef].explored
                 if trans.finRef is not None:
                     self.connectivity[i][trans.finRef].append(j)
 
-        # print "Connectivity matrix for atom %d:" % self.atomNum
-        # for i in range(N):
-        #     print self.connectivity[i]
+        if len(self.connectivity) > 1:
+            print "Connectivity matrix for atom %d:" % self.atomNum
+            for i in range(N):
+                print self.connectivity[i]
 
+        # print "Current DV explored: ", self.basinPos[cDV].explored
         # explor = []
         # for i in range(N):
         #     explor.append(self.basinPos[i].explored)
@@ -240,20 +251,27 @@ class basin(object):
 
     # check if position is in this basin
     def thisBasin(self, pos):
-        cPos = self.currentPos
-        if PBC_distance(cPos[0],cPos[1],cPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
-            return True
+        # cPos = self.currentPos
+        # if PBC_distance(cPos[0],cPos[1],cPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
+        #     return True
 
         for basPos in self.basinPos:
             bPos = basPos.iniPos
             if PBC_distance(bPos[0],bPos[1],bPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
                 return True
 
+        for basPos in self.basinPos:
+            for trans in basPos.transitionList:
+                tPos = trans.finPos
+                if PBC_distance(tPos[0],tPos[1],tPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
+                    print "MATCH MADE WITH FINAL POS"
+
         return False
 
     # calculate mean rates within the basin
     def meanRate(self):
         result = []
+        barriers = []
         stateNum = 0
         stateMapping = []
         for i in range(len(self.basinPos)):
@@ -272,6 +290,7 @@ class basin(object):
             sum = 0.0
             for i in range(transNum[j]):
                 sum += self.basinPos[stateMapping[j]].transitionList[i].rate
+                barriers.append(self.basinPos[stateMapping[j]].transitionList[i].barrier)
             if sum == 0.0:
                 print "Error: Sum of rates for State %d (%d trans) is zero!"%(j, transNum[j])
                 return result
@@ -317,7 +336,8 @@ class basin(object):
                     if self.basinPos[finalDV].explored:
                         result.append(0.0)
                     else:
-                        result.append(self.basinPos[stateMapping[i]].transitionList[j].rate)
+                        localRate = tao[i]/taoSum*self.basinPos[stateMapping[i]].transitionList[j].rate
+                        result.append(localRate)
                 else:
                     localRate = tao[i]/taoSum*self.basinPos[stateMapping[i]].transitionList[j].rate
                     result.append(localRate)
@@ -326,6 +346,7 @@ class basin(object):
                         negRate = True
 
         print "Mean rate results: ", result
+        print "barriers: ", barriers
 
         if not negRate:
             return result
@@ -335,11 +356,13 @@ class basin(object):
     # if basin is being deleted, create normal event list
     def addUnchangedEvents(self,atomNum):
         event_list = []
+        # barriers = []
         if len(self.basinPos):
             for trans in self.basinPos[0].transitionList:
                 event = [trans.rate,atomNum,trans.finPos,trans.barrier]
                 event_list.append(event)
-
+                # barriers.append(trans.barrier)
+        # print barriers
         return event_list
 
     # update rates within the basin and create new events
@@ -357,11 +380,13 @@ class basin(object):
                         event = [newRate,atomNum,trans.finPos,trans.barrier]
                         event_list.append(event)
                         k += 1
-                else:
-                    for j in range(len(self.basinPos[i].transitionList)):
-                        trans = self.basinPos[i].transitionList[j]
-                        event = [trans.rate,atomNum,trans.finPos,trans.barrier]
-                        event_list.append(event)
+                # else:
+                #     for j in range(len(self.basinPos[i].transitionList)):
+                #         trans = self.basinPos[i].transitionList[j]
+                #         event = [trans.rate,atomNum,trans.finPos,trans.barrier]
+                #         event_list.append(event)
+            if len(result) > k:
+                print "WARNING, not all mean rates are assigned!", len(result), k
         else:
             for i in range(len(self.basinPos)):
                 if self.basinPos[i].explored:
@@ -789,16 +814,16 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
     # check for move fails
     if round(y-y_grid_dist-neighbour_heights[0],2) == 0:
         #print "Moved to unstable position", neighbour_species[0]
-        print x,y,z
+        # print x,y,z
         return None
     if round(y-y_grid_dist2-neighbour_heights[0],2) == 0:
         #print "Moved to unstable position", neighbour_species[0]
-        print x,y,z
+        # print x,y,z
         return None
 
     if round(y-neighbour_heights[0],2) == 0:
         #print "Moved into existing atom!"
-        print x,y,z
+        # print x,y,z
         return None
 
     AdNeighbours = 0
@@ -811,12 +836,12 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
         # will always be at least 1 as it includes self pre-move
         if AdNeighbours > 1:
             #print "Moved too close to existing atoms"
-            print x,y,z
+            # print x,y,z
             return None
     else:
         if AdNeighbours > 0:
             #print "Moved too close to existing atoms"
-            print x,y,z
+            # print x,y,z
             return None
 
     #print "Moved atom"
@@ -1048,6 +1073,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                 if basId.atomNum == j:
                     if basId.thisBasin(iniPos):
                         bas = basId
+                        bas.currentPos = iniPos
                         basinExists = True
                         keepBasin = True
                         break
@@ -1070,11 +1096,11 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                 if final_key is not None:
                     try:
                         trans = vol.finalKeys[final_key]
-
                         if useBasin:
-                            bas.addTransition(iniPos,final_pos,trans.rate,trans.barrier,trans.reverseBarrier)
-                            if trans.barrier < basinBarrierTol or trans.reverseBarrier < basinBarrierTol:
-                                keepBasin = True
+                            if trans.barrier is not None and trans.barrier != 'None':
+                                bas.addTransition(iniPos,final_pos,trans.rate,trans.barrier,trans.reverseBarrier)
+                                if trans.barrier < basinBarrierTol or trans.reverseBarrier < basinBarrierTol:
+                                    keepBasin = True
 
                         # trans.hashkey = final_key
                         # event_list.append([trans.rate,j,final_pos,trans.barrier])
@@ -1108,7 +1134,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
             if not keepBasin:
                 events = bas.addUnchangedEvents(j)
                 event_list = event_list + events
-                basinList.pop()
+                basinList.pop(whichB)
             else:
                 bas.buildConnectivity()
                 events = bas.addChangedEvents(j)
