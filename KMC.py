@@ -23,7 +23,7 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 0  	        # number of initial depositions
-total_steps = 6000           # total number of steps to run
+total_steps = 13000           # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 volumesOutEvery = 10        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
@@ -145,6 +145,9 @@ class basin(object):
         else:
             flag = 1
 
+        # if PBC_distance(iniPos[0],iniPos[1],iniPos[2],finPos[0],finPos[1],finPos[2]) < basinDistTol:
+        #     return
+
         createFlagF = 1
         i=0
         # check if initial position exists in the basin
@@ -177,45 +180,68 @@ class basin(object):
                 self.basinPos[i].explored = 1
 
 
-        # if non escaping transition, add reverse transition
-        if not flag:
-            # locate final position in basin
-            j=0
+        j=0
+        createFlag = 1
+        finalInBasin = 0
+        # check final position exists in the basin
+        for j in range(len(self.basinPos)):
+            pos = self.basinPos[j].iniPos
+            if PBC_distance(finPos[0],finPos[1],finPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
+                createFlag = 0
+                finalInBasin = 1
+                break
+
+        # if does not exist, add
+        if createFlag and not flag:
+            j = len(self.basinPos)
+            revRate = calc_rate(reverseBarrier)
+            newTransR = basinTransition(iniPos,revRate,reverseBarrier,barrier)
+            newTransR.finRef = i
+            newPosR = basinPosition()
+            newPosR.explored = 0
+            newPosR.iniPos = finPos
+            newPosR.transitionList.append(newTransR)
+            self.basinPos.append(newPosR)
+            finalInBasin = 1
+
+        elif not createFlag and not flag:
+            # check transition exists in the basin
             createFlag = 1
-            # check final position exists in the basin
-            for j in range(len(self.basinPos)):
-                pos = self.basinPos[j].iniPos
-                if PBC_distance(finPos[0],finPos[1],finPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
+            for trans in self.basinPos[j].transitionList:
+                if PBC_distance(iniPos[0],iniPos[1],iniPos[2],trans.finPos[0],trans.finPos[1],trans.finPos[2]) < basinDistTol:
                     createFlag = 0
-                    break
-
-            # if does not exist, add
+            # add transition if not
             if createFlag:
-                j = len(self.basinPos)
-                revRate = calc_rate(reverseBarrier)
-                newTransR = basinTransition(iniPos,revRate,reverseBarrier,barrier)
+                newTransR = basinTransition(iniPos,rate,reverseBarrier,barrier)
                 newTransR.finRef = i
-                newPosR = basinPosition()
-                newPosR.explored = 0
-                newPosR.iniPos = finPos
-                newPosR.transitionList.append(newTransR)
-                self.basinPos.append(newPosR)
-            else:
-                # check transition exists in the basin
-                createFlag = 1
-                for trans in self.basinPos[j].transitionList:
-                    if PBC_distance(iniPos[0],iniPos[1],iniPos[2],trans.finPos[0],trans.finPos[1],trans.finPos[2]) < basinDistTol:
-                        createFlag = 0
-                # add transition if not
-                if createFlag:
-                    newTransR = basinTransition(finPos,rate,barrier,reverseBarrier)
-                    newTransR.finRef = i
-                    self.basinPos[j].transitionList.append(newTransR)
+                self.basinPos[j].transitionList.append(newTransR)
 
-            # assign ref to positions
-            if createFlagF:
-                self.basinPos[i].transitionList[-1].finRef = j
-                # print "Adding transition: ",i,j
+        elif not createFlag and flag:
+            createFlag = 1
+            for trans in self.basinPos[j].transitionList:
+                if PBC_distance(iniPos[0],iniPos[1],iniPos[2],trans.finPos[0],trans.finPos[1],trans.finPos[2]) < basinDistTol:
+                    createFlag = 0
+            # add transition if not
+            if createFlag:
+                newTransR = basinTransition(iniPos,rate,reverseBarrier,barrier)
+                newTransR.finRef = i
+                self.basinPos[j].transitionList.append(newTransR)
+
+        # assign ref to positions
+        if createFlagF and finalInBasin:
+            self.basinPos[i].transitionList[-1].finRef = j
+            # print "Adding transition: ",i,j
+
+            # change previously found escaping transitions to internal
+            for basPos in self.basinPos:
+                for trans in basPos.transitionList:
+                    tPos = trans.finPos
+                    if trans.finRef is None:
+                        if PBC_distance(tPos[0],tPos[1],tPos[2],finPos[0],finPos[1],finPos[2]) < basinDistTol:
+                            trans.finRef = j
+                            rate = calc_rate(trans.reverseBarrier)
+                            newTransM = basinTransition(basPos.iniPos,rate,trans.reverseBarrier,trans.barrier)
+                            print "MATCH MADE WITH FINAL POS"
 
     # build connectivity matrix. All elements are transition numbers
     def buildConnectivity(self):
@@ -235,7 +261,12 @@ class basin(object):
                 # if trans.finRef is not None:
                 #     print self.basinPos[trans.finRef].explored
                 if trans.finRef is not None:
-                    self.connectivity[i][trans.finRef].append(j)
+                    if len(self.connectivity[i][trans.finRef]) == 0:
+                        self.connectivity[i][trans.finRef].append(j)
+                    else:
+                        print "Warning! Two same transitions! State: ", i, "Transitions: ", j, self.connectivity[i][trans.finRef][0]
+                        self.basinReport("Faulty")
+                        sys.exit()
 
         if len(self.connectivity) > 1:
             print "Connectivity matrix for atom %d:" % self.atomNum
@@ -258,7 +289,7 @@ class basin(object):
         for basPos in self.basinPos:
             bPos = basPos.iniPos
             if PBC_distance(bPos[0],bPos[1],bPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
-                # self.basinReport(step)
+                self.basinReport(step)
                 return True
 
         for basPos in self.basinPos:
@@ -306,8 +337,9 @@ class basin(object):
 
 
 
-        for k in stateMapping:
-            q = self.basinPos[k]
+        for k in range(len(stateMapping)):
+            state = stateMapping[k]
+            q = self.basinPos[state]
             if PBC_distance(q.iniPos[0],q.iniPos[1],q.iniPos[2],self.currentPos[0],self.currentPos[1],self.currentPos[2]) < basinDistTol:
                 startDV = k
                 break
@@ -316,6 +348,13 @@ class basin(object):
         try:
             occupVect0[startDV] = 1.0
         except IndexError:
+            print "Warning! StartDV %d not found" %(startDV)
+            print "Length of stateMapping: ", len(stateMapping)
+            print "Current pos: ", self.currentPos
+            self.basinReport("BadStartDV")
+            for k in stateMapping:
+                print self.basinPos[k].iniPos
+            sys.exit()
             occupVect0[0] = 1.0
 
         matrix2bInv = np.matrix(np.identity(stateNum)) - transMatrix
@@ -348,11 +387,11 @@ class basin(object):
                     localRate = tao[i]/taoSum*self.basinPos[stateMapping[i]].transitionList[j].rate
                     result.append(localRate)
                     if localRate < 0.0:
-                        print "WARNING: get a negative mean rate!! %r"%localRate
+                        print "WARNING: got a negative mean rate!! %r"%localRate
                         negRate = True
 
-        print "Mean rate results: ", result
-        print "barriers: ", barriers
+        # print "Mean rate results: ", result
+        # print "barriers: ", barriers
 
         if not negRate:
             return result
@@ -403,19 +442,26 @@ class basin(object):
 
         return event_list
 
+    # optional report output for debugging
     def basinReport(self,index):
 
-        report = initial_dir + "/BasinAtom"+str(self.atomNum)+"Step"+str(index) + '.txt'
+        # create a report file
+        report = basin_dir + "/BasinAtom"+str(self.atomNum)+"Step"+str(index) + '.txt'
         outf = open(report, 'w')
-        outf.write("Number of states in basin: "+str(len(self.basinPos))+"\n")
+        outf.write("Number of states in basin: "+str(len(self.basinPos))+"\n\n")
+
+        # write out connectivity matrix
         for i in range(len(self.connectivity)):
             outf.write(str(self.connectivity[i])+"\n")
+        outf.write("\n")
+
+        # write all states and transitions
         for i in range(len(self.basinPos)):
-            outf.write("State " + str(i)+  "\t position " + str(self.basinPos[i].iniPos) + "\n")
+            outf.write("State " + str(i)+  "\t position " + str(self.basinPos[i].iniPos) + "\t Explored " + str(self.basinPos[i].explored)+ "\n")
             for j in range(len(self.basinPos[i].transitionList)):
                 trans = self.basinPos[i].transitionList[j]
-                outf.write("\t Trans " + str(j) + "\t final position " + str(trans.finPos) + "\t Barrier " + str(trans.barrier)+"\t RevBarrier " + str(trans.reverseBarrier)+ "\n")
-
+                outf.write("\t Trans " + str(j) + "\t Barrier " + str(trans.barrier)+"\t RevBarrier " + str(trans.reverseBarrier)+ "\t final position " + str(trans.finPos)+"\t finalState "+str(trans.finRef)+ "\n")
+            outf.write("\n")
         outf.close()
 
 # calculate the rate of an event given barrier height (Arrhenius eq.)
@@ -1608,6 +1654,7 @@ Trans_dir = initial_dir + '/Transitions'
 Volumes_dir = initial_dir + '/Volumes'
 NEB_dir_name_prefac = initial_dir + '/Temp'
 Stats_dir = initial_dir + '/Stats'
+basin_dir = initial_dir + '/Basin'
 
 print " Current directory           : ", initial_dir
 print " Output directory prefactor  : ", output_dir_name_prefac
@@ -1632,6 +1679,9 @@ if not os.path.exists(NEB_dir_name_prefac):
     os.makedirs(NEB_dir_name_prefac)
 if not os.path.exists(Trans_dir):
     os.makedirs(Trans_dir)
+if useBasin:
+    if not os.path.exists(basin_dir):
+        os.makedirs(basin_dir)
 if StatsOut:
     if not os.path.exists(Stats_dir):
         os.makedirs(Stats_dir)
