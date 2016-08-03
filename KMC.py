@@ -40,6 +40,7 @@ useBasin = True            # Booleon: use the basin method or not
 basinBarrierTol = 0.21      # barriers below this are considered in a basin (eV)
 basinBarrierSubTol = 0.40   # if one barrier is above this, it is considered an escaping transition not internal
 basinDistTol = 0.3         # distance between states to be considered the same state (A)
+checkMoveDist = 2          # distance used in checkMoveDist. Do not allow an atom to move within this distance of another atom. Needed for basin method
 
 
 # for (0001) ZnO only
@@ -289,7 +290,7 @@ class basin(object):
         for basPos in self.basinPos:
             bPos = basPos.iniPos
             if PBC_distance(bPos[0],bPos[1],bPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
-                self.basinReport(step)
+                # self.basinReport(step)
                 return True
 
         for basPos in self.basinPos:
@@ -921,7 +922,8 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
 # pick an event from an event list
 def choose_event(event_list,Time):
     # add on deposition event
-    event_list.append([depoRate,0,['Depo'],0])
+    bar = find_barrier_height(depoRate)
+    event_list.append([depoRate,0,['Depo'],bar])
 
     # print "Choose event from event list:"
     # print event_list
@@ -973,7 +975,22 @@ def choose_event(event_list,Time):
     u = random.random()
     Time += (np.log(1/u)/TotalRate)*1E15
 
-    return chosenRate, chosenEvent, chosenAtom, Time, chosenBarrier
+    return chosenRate, chosenEvent, chosenAtom, Time, chosenBarrier, i
+
+# check that chosen move is reasonable
+def checkMove(chosenEvent, chosenAtom, full_depo_list):
+    new_full_list = copy.deepcopy(full_depo_list)
+    new_full_list.pop(chosenAtom)
+
+    for atom in new_full_list:
+        x = atom[1]
+        y = atom[2]
+        z = atom[3]
+        if y > initial_surface_height:
+            if PBC_distance(x,y,z,chosenEvent[0],chosenEvent[1],chosenEvent[2]) < checkMoveDist*2:
+                return False
+
+    return True
 
 # calcuate list of atoms with graph radius of defect
 def find_volume_atoms(lattice_pos,x,y,z):
@@ -1384,13 +1401,13 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
         if results:
             print results
             #write_trans_file(hashkey,results)
-            return 0, results, vol, keepBasin;
+            return 0, results, vol, keepBasin
     else:
         print "WARNING: maxMove too large in initial lattice"
         sys.exit()
 
     del ini, iniMin
-    del fin, finMin
+    #del fin, finMin
     del Sep
 
     return 1, results, vol, keepBasin;
@@ -1791,7 +1808,17 @@ while CurrentStep < (total_steps + 1):
         StatsOutput(event_list,CurrentStep,len(full_depo_list))
 
     # choose event
-    chosenRate, chosenEvent, chosenAtom, Time, chosenBarrier = choose_event(event_list, Time)
+    while 1:
+        chosenRate, chosenEvent, chosenAtom, Time, chosenBarrier, i = choose_event(event_list, Time)
+        if chosenEvent[0] == 'Depo':
+            break
+
+        # check final position of atom 
+        status = checkMove(chosenEvent,chosenAtom,full_depo_list)
+        if status:
+            break
+        else:
+            event_list.pop(i)
 
     # do deposition
     if chosenEvent[0] == 'Depo':
