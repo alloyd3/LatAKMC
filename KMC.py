@@ -31,11 +31,11 @@ prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12
 boltzmann = 8.62E-05        # Boltzmann constant (8.62E-05)
 graphRad = 5.9                # graph radius of defect volumes (Angstroms)
 depoRate = 1200            # deposition rate
-maxMoveCriteria = 0.6        # maximum distance an atom can move after relaxation (pre NEB)
+maxMoveCriteria = 0.8        # maximum distance an atom can move after relaxation (pre NEB)
 MaxHeight = 30              # Dimension of cell in y direction (A)
 IncludeUpTrans = 0          # Booleon: Include transitions up step edges (turning off speeds up simulation)
 IncludeDownTrans = 1        # Booleon: Include transitions down step edges
-StatsOut = False               # Recieve extra information from your run
+StatsOut = True               # Recieve extra information from your run
 useBasin = True            # Booleon: use the basin method or not
 basinBarrierTol = 0.21      # barriers below this are considered in a basin (eV)
 basinBarrierSubTol = 0.40   # if one barrier is above this, it is considered an escaping transition not internal
@@ -975,6 +975,7 @@ def choose_event(event_list,Time):
     u = random.random()
     Time += (np.log(1/u)/TotalRate)*1E15
 
+    print "Number of events to choose from: ", len(event_list)
     return chosenRate, chosenEvent, chosenAtom, Time, chosenBarrier, i
 
 # check that chosen move is reasonable
@@ -1175,6 +1176,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
         if len(vol.directions) != 0:
             vol = volumes[vol_key]
             # vol.hashkey = vol_key
+            #print "Finding trans for atom ", j, vol_key
             for direc in vol.directions:
                 final_key, final_pos = findFinal(direc,j,full_depo_index,surface_positions)
                 if final_key is not None:
@@ -1185,18 +1187,20 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                                 bas.addTransition(iniPos,final_pos,trans.rate,trans.barrier,trans.reverseBarrier)
                                 if trans.barrier < basinBarrierTol or trans.reverseBarrier < basinBarrierTol:
                                     keepBasin = True
-
-                        # trans.hashkey = final_key
-                        # event_list.append([trans.rate,j,final_pos,trans.barrier])
+                        else:
+                            trans.hashkey = final_key
+                            event_list.append([trans.rate,j,final_pos,trans.barrier,trans.reverseBarrier])
                     except KeyError:
                         result, vol = singleNEB(direc,full_depo_index,surface_lattice,j,vol_key,final_key,natoms,vol)
                         if result:
                             if result[2] != "None":
                                 rate = calc_rate(float(result[2]))
-                                bas.addTransition(iniPos,final_pos,rate,float(result[2]),vol.finalKeys[final_key].reverseBarrier)
-                                if float(result[2]) < basinBarrierTol or vol.finalKeys[final_key].reverseBarrier < basinBarrierTol:
-                                    keepBasin = True
-                                # event_list.append([rate,j,final_pos,float(result[2])])
+                                if useBasin:
+                                    bas.addTransition(iniPos,final_pos,rate,float(result[2]),vol.finalKeys[final_key].reverseBarrier)
+                                    if float(result[2]) < basinBarrierTol or vol.finalKeys[final_key].reverseBarrier < basinBarrierTol:
+                                        keepBasin = True
+                                else:
+                                    event_list.append([rate,j,final_pos,float(result[2]),vol.finalKeys[final_key].reverseBarrier])
 
 
         else:
@@ -1207,7 +1211,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
             else:
                 status, result, vol, _ = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms,vol,None)
             if status:
-                break
+                pass
             else:
                 event_list = event_list + result
                 volumes[vol_key] = vol
@@ -1433,6 +1437,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
     minimiser = Minimise.getMinimiser(params)
     status = minimiser.run(iniMin)
     if status:
+        print "CRITICAL ERROR!!!"
         print " WARNING! failed to minimise initial lattice"
         sys.exit()
 
@@ -1533,7 +1538,9 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
         # if results:
         #     add_to_trans_file(hashkey,results)
     else:
-        print "WARNING: maxMove too large in initial lattice"
+        print "CRITICAL ERROR!"
+        print "WARNING: maxMove too large in initial lattice ", maxMove
+        write_lattice("ERROR",full_depo_list,surface_lattice,natoms,Time,Barrier)
         sys.exit()
 
     del ini, iniMin
@@ -1619,7 +1626,7 @@ def StatsOutput(event_list,CurrentStep,numAdatoms):
         num = len(event_list)
         for i in xrange(num):
             TotalRate += float(event_list[i][0])
-            if event_list[i][3] != None:
+            if event_list[i][3] is not None and event_list[i][3] != 'None':
                 try:
                     TotalBarrier += float(event_list[i][3])
                 except ValueError:
@@ -1813,7 +1820,7 @@ while CurrentStep < (total_steps + 1):
         if chosenEvent[0] == 'Depo':
             break
 
-        # check final position of atom 
+        # check final position of atom
         status = checkMove(chosenEvent,chosenAtom,full_depo_list)
         if status:
             break
