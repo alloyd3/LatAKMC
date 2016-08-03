@@ -922,8 +922,6 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
 # pick an event from an event list
 def choose_event(event_list,Time):
     # add on deposition event
-    bar = find_barrier_height(depoRate)
-    event_list.append([depoRate,0,['Depo'],bar])
 
     # print "Choose event from event list:"
     # print event_list
@@ -1814,9 +1812,13 @@ while CurrentStep < (total_steps + 1):
     if StatsOut:
         StatsOutput(event_list,CurrentStep,len(full_depo_list))
 
+    bar = find_barrier_height(depoRate)
+    event_list.append([depoRate,0,['Depo'],bar])
+
     # choose event
     while 1:
         chosenRate, chosenEvent, chosenAtom, Time, chosenBarrier, i = choose_event(event_list, Time)
+
         if chosenEvent[0] == 'Depo':
             break
 
@@ -1825,6 +1827,7 @@ while CurrentStep < (total_steps + 1):
         if status:
             break
         else:
+            print "Problem with chosen event %d. Removing event from list" %i
             event_list.pop(i)
 
     # do deposition
