@@ -23,7 +23,7 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 0  	        # number of initial depositions
-total_steps = 13000           # total number of steps to run
+total_steps = 20000           # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 volumesOutEvery = 10        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
@@ -291,15 +291,16 @@ class basin(object):
             bPos = basPos.iniPos
             if PBC_distance(bPos[0],bPos[1],bPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
                 # self.basinReport(step)
+                basPos.explored = 1
                 return True
 
-        for basPos in self.basinPos:
-            for trans in basPos.transitionList:
-                tPos = trans.finPos
-                if PBC_distance(tPos[0],tPos[1],tPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
-                    # print "pos: ", pos, "CurrentPos: ", self.currentPos
-                    print "MATCH MADE WITH FINAL POS"
-                    # self.basinReport(step)
+        # for basPos in self.basinPos:
+        #     for trans in basPos.transitionList:
+        #         tPos = trans.finPos
+        #         if PBC_distance(tPos[0],tPos[1],tPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
+        #             # print "pos: ", pos, "CurrentPos: ", self.currentPos
+        #             print "MATCH MADE WITH FINAL POS"
+        #             # self.basinReport(step)
 
         return False
 
@@ -912,8 +913,21 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
             # print x,y,z
             return None
 
-    #print "Moved atom"
+    new_full_list = copy.deepcopy(full_depo_list)
+    new_full_list.pop((depo_list[4]-len(surface_lattice)-1))
 
+
+    for atom in new_full_list:
+        x2 = atom[1]
+        y2 = atom[2]
+        z2 = atom[3]
+        if y > initial_surface_height:
+            if PBC_distance(x,y,z,x2,y2,z2) < checkMoveDist*2:
+                del new_full_list
+                return None
+
+    #print "Moved atom"
+    del new_full_list
     moved_list = [atom_species,x,y,z,depo_list[4]]
 
     return moved_list
@@ -1828,7 +1842,15 @@ while CurrentStep < (total_steps + 1):
             break
         else:
             print "Problem with chosen event %d. Removing event from list" %i
-            event_list.pop(i)
+            print event_list[i]
+            for e in range(len(event_list)):
+                eventl = event_list[e]
+                if eventl[1] == chosenAtom:
+                    if eventl[2] == chosenEvent:
+                        event_list.pop(e)
+                        break
+
+            # event_list.pop(i)
 
     # do deposition
     if chosenEvent[0] == 'Depo':
