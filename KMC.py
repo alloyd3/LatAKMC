@@ -23,7 +23,7 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 0  	        # number of initial depositions
-total_steps = 20000           # total number of steps to run
+total_steps = 25000           # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 volumesOutEvery = 10        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
@@ -41,6 +41,7 @@ basinBarrierTol = 0.21      # barriers below this are considered in a basin (eV)
 basinBarrierSubTol = 0.40   # if one barrier is above this, it is considered an escaping transition not internal
 basinDistTol = 0.3         # distance between states to be considered the same state (A)
 checkMoveDist = 2          # distance used in checkMoveDist. Do not allow an atom to move within this distance of another atom. Needed for basin method
+reverseBarrierTol = 0.02   # Tolerance to allow transitions with reverse barriers greater than this only
 
 
 # for (0001) ZnO only
@@ -1393,6 +1394,22 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
                     neb.barrier = round(neb.barrier,6)
                     reverseBarrier = round((iniMin.totalEnergy-finMin.totalEnergy)+neb.barrier,6)
                     print "Reverse barrier: ", reverseBarrier
+
+                    # reverse barrier is too small, transition would immediately come back
+                    if reverseBarrierTol is not None:
+                        if reverseBarrier < reverseBarrierTol:
+                            barrier = str("None")
+                            results.append([0,atom_index, final_pos, barrier])
+                            vol.addTrans(dir_vector[i], final_key, barrier, str("None"),str("None"))
+                            continue
+
+                    # do not allow any negative barriers
+                    if neb.barrier < 0 or reverseBarrier < 0:
+                        barrier = str("None")
+                        results.append([0,atom_index, final_pos, barrier])
+                        vol.addTrans(dir_vector[i], final_key, barrier, str("None"),str("None"))
+                        continue
+
                     # find final hashkey
                     final_key, final_pos = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
                     rate = calc_rate(neb.barrier)
@@ -1521,6 +1538,24 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 barrier = round(neb.barrier,6)
                 reverseBarrier = round((iniMin.totalEnergy-finMin.totalEnergy)+neb.barrier,6)
                 print "Reverse barrier: ", reverseBarrier
+
+                # do not allow transitions with tiny reverse barriers
+                if reverseBarrierTol is not None:
+                    if reverseBarrier < reverseBarrierTol:
+                        barrier = str("None")
+                        results = [direction, final_key, barrier]
+                        results[0] = map(int,results[0])
+                        vol.addTrans(results[0], final_key, barrier, str("None"),str("None"))
+                        return results, vol
+
+                # do not allow any negative barriers
+                if neb.barrier < 0 or reverseBarrier < 0:
+                    barrier = str("None")
+                    results = [direction, final_key, barrier]
+                    results[0] = map(int,results[0])
+                    vol.addTrans(results[0], final_key, barrier, str("None"),str("None"))
+                    return results, vol
+
 
                 results = [direction, final_key, barrier]
                 results[0] = map(int,results[0])
