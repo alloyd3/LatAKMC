@@ -23,7 +23,7 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 0  	        # number of initial depositions
-total_steps = 25000           # total number of steps to run
+total_steps = 35000           # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 volumesOutEvery = 10        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
@@ -41,7 +41,7 @@ basinBarrierTol = 0.21      # barriers below this are considered in a basin (eV)
 basinBarrierSubTol = 0.40   # if one barrier is above this, it is considered an escaping transition not internal
 basinDistTol = 0.3         # distance between states to be considered the same state (A)
 checkMoveDist = 2          # distance used in checkMoveDist. Do not allow an atom to move within this distance of another atom. Needed for basin method
-reverseBarrierTol = 0.02   # Tolerance to allow transitions with reverse barriers greater than this only
+reverseBarrierTol = 0.03   # Tolerance to allow transitions with reverse barriers greater than this only
 
 
 # for (0001) ZnO only
@@ -1956,7 +1956,7 @@ if StatsOut:
         AveEvents = AveEvents/(CurrentStep-numberDepos)
         print "Average Rate: ", AveRate, "\tAverage Barrier: ", AveBarrier, "\tAverage Number of events: ", AveEvents
 
-
+del basinList
 del volumes
 del full_depo_list
 del surface_lattice
