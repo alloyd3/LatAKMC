@@ -1436,7 +1436,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
             #write_trans_file(hashkey,results)
             return 0, results, vol, keepBasin
     else:
-        print "WARNING: maxMove too large in initial lattice"
+        print "WARNING: maxMove too large in initial lattice: ", maxMove
         sys.exit()
 
     del ini, iniMin
