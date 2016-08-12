@@ -690,6 +690,23 @@ def deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_index,natoms):
     deposition_list = [atom_species, x_coord, y_coord, z_coord, natoms]
     return deposition_list
 
+# allign minimised lattice back to lattice positions
+def setToLattice(full_depo_index):
+    for i in range(len(full_depo_index)):
+        atom = full_depo_index[i]
+        new_x = round(atom[1]/x_grid_dist)*x_grid_dist
+        new_z = round(atom[3]/z_grid_dist)*z_grid_dist
+        y_compare = initial_surface_height + y_grid_dist
+        new_y = round((atom[2]-y_compare)/y_grid_dist2)
+        new_y = new_y*y_grid_dist2 + y_compare
+
+        full_depo_index[1] = new_x
+        full_depo_index[2] = new_y
+        full_depo_index[3] = new_z
+
+    return full_depo_index
+
+
 # find PBC position in one direction
 def PBC_pos(x,box_x):
 	x = round(x,6)
@@ -1130,6 +1147,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
     event_list = []
     adatom_positions = []
     adatom_specie = []
+    initialMinimised = False
 
     # move to global parameters
     trans_dir = initial_dir + '/Transitions/'
@@ -1204,7 +1222,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                             trans.hashkey = final_key
                             event_list.append([trans.rate,j,final_pos,trans.barrier,trans.reverseBarrier])
                     except KeyError:
-                        result, vol = singleNEB(direc,full_depo_index,surface_lattice,j,vol_key,final_key,natoms,vol)
+                        result, vol = singleNEB(direc,full_depo_index,surface_lattice,j,vol_key,final_key,natoms,vol,initialMinimised)
                         if result:
                             if result[2] != "None":
                                 rate = calc_rate(float(result[2]))
@@ -1220,14 +1238,15 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
             print "Cannot find volume transitions. Doing searches now ", vol_key
             # do searches on volume and save to new trans file
             if useBasin:
-                status, result, vol, keepBasin = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms,vol,bas)
+                status, result, vol, keepBasin, initialMinimised = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms,vol,bas)
             else:
-                status, result, vol, _ = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms,vol,None)
+                status, result, vol, _, initialMinimised = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms,vol,None)
             if status:
                 pass
             else:
                 event_list = event_list + result
                 volumes[vol_key] = vol
+
 
         del volumeAtoms
 
@@ -1243,7 +1262,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                 if len(bas.basinPos) < 2:
                     basinList.pop(whichB)
 
-
+    del initialMinimised
     del lattice_positions
     del adatom_positions
 
@@ -1431,10 +1450,14 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
                     results.append([0,atom_index, final_pos, barrier])
                     vol.addTrans(dir_vector[i], final_key, barrier, 0, str("None"))
 
+            else:
+                barrier = str("None")
+                results.append([0,atom_index, str("None"), barrier])
+
         if results:
             print results
             #write_trans_file(hashkey,results)
-            return 0, results, vol, keepBasin
+            return 0, results, vol, keepBasin, iniMin
     else:
         print "WARNING: maxMove too large in initial lattice: ", maxMove
         sys.exit()
@@ -1443,10 +1466,10 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
     #del fin, finMin
     del Sep
 
-    return 1, results, vol, keepBasin;
+    return 1, results, vol, keepBasin, False;
 
 # do a single NEB and add transition to trans files
-def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final_key,natoms, vol):
+def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final_key,natoms,vol,initialMinimised):
     print "SINGLE NEB", "="*60
 
     barrier = []
@@ -1455,20 +1478,24 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
 
     print natoms
     # create initial lattice
-    write_lattice_LKMC('/initial',full_depo_index,surface_lattice,natoms)
-    ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
-    iniMin = copy.deepcopy(ini)
 
+    if initialMinimised == False:
+        write_lattice_LKMC('/initial',full_depo_index,surface_lattice,natoms)
+        ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
+        iniMin = copy.deepcopy(ini)
+
+        # minimise lattice
+        minimiser = Minimise.getMinimiser(params)
+        status = minimiser.run(iniMin)
+        if status:
+            print "CRITICAL ERROR!!!"
+            print " WARNING! failed to minimise initial lattice"
+            sys.exit()
+    else:
+        iniMin = initialMinimised
+        ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
     # create cell dimensions
     cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
-
-    # minimise lattice
-    minimiser = Minimise.getMinimiser(params)
-    status = minimiser.run(iniMin)
-    if status:
-        print "CRITICAL ERROR!!!"
-        print " WARNING! failed to minimise initial lattice"
-        sys.exit()
 
     # check max movement
     Index, maxMove, avgMove, Sep = Vectors.maxMovement(ini.pos, iniMin.pos, cellDims)
@@ -1587,7 +1614,6 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
     else:
         print "CRITICAL ERROR!"
         print "WARNING: maxMove too large in initial lattice ", maxMove
-        write_lattice("ERROR",full_depo_list,surface_lattice,natoms,Time,Barrier)
         sys.exit()
 
     del ini, iniMin
@@ -1894,10 +1920,36 @@ while CurrentStep < (total_steps + 1):
             depo_list = deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_list,natoms)
             if depo_list:
                 natoms = depo_list[4]
+                full_depo_backup = copy.deepcopy(full_depo_list)
                 full_depo_list.append(depo_list)
-                index += 1
-                # delete basins if deposition occurs
-                basinList = []
+
+                # Minimise after each deposition
+                write_lattice_LKMC('/initial',full_depo_list,surface_lattice,natoms)
+                ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
+                iniMin = copy.deepcopy(ini)
+                # create cell dimensions
+                cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
+                # minimise lattice
+                minimiser = Minimise.getMinimiser(params)
+                status = minimiser.run(iniMin)
+                if status:
+                    print " Warning: failed to minimise initial lattice"
+                    full_depo_list = full_depo_backup
+                else:
+                    # check max movement
+                    Index, maxMove, avgMove, Sep = Vectors.maxMovement(ini.pos, iniMin.pos, cellDims)
+
+                    if maxMove < maxMoveCriteria:
+                        index += 1
+                        # delete basins if deposition occurs
+                        basinList = []
+                        write_lattice_LKMC('/reset',full_depo_list,surface_lattice,natoms)
+                        # sys.exit()
+                    else:
+                        full_depo2 = setToLattice(full_depo_list)
+                        write_lattice_LKMC('/reset',full_depo2,surface_lattice,natoms)
+                        full_depo_list = full_depo_backup
+                        # sys.exit()
         CurrentStep += 1
 
     # do move
