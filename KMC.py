@@ -23,7 +23,7 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
 numberDepos = 0  	        # number of initial depositions
-total_steps = 35000           # total number of steps to run
+total_steps = 65000           # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 volumesOutEvery = 10        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
@@ -694,15 +694,18 @@ def deposition(box_x,box_z,x_grid_dist,z_grid_dist,full_depo_index,natoms):
 def setToLattice(full_depo_index):
     for i in range(len(full_depo_index)):
         atom = full_depo_index[i]
-        new_x = round(atom[1]/x_grid_dist)*x_grid_dist
+        try:
+            new_x = round(atom[1]/x_grid_dist)*x_grid_dist
+        except TypeError:
+            print "full_depo_list[i]: ", atom
         new_z = round(atom[3]/z_grid_dist)*z_grid_dist
         y_compare = initial_surface_height + y_grid_dist
         new_y = round((atom[2]-y_compare)/y_grid_dist2)
         new_y = new_y*y_grid_dist2 + y_compare
 
-        full_depo_index[1] = new_x
-        full_depo_index[2] = new_y
-        full_depo_index[3] = new_z
+        full_depo_index[i][1] = new_x
+        full_depo_index[i][2] = new_y
+        full_depo_index[i][3] = new_z
 
     return full_depo_index
 
@@ -1846,6 +1849,7 @@ if jobStatus == 'CNTIN':
                 full_depo_list[i][4] = orig_len + 1 + i
 
             natoms += len(full_depo_list)
+            full_depo_list = setToLattice(full_depo_list)
             CurrentStep = (num-1) * latticeOutEvery
             break
         num += 1
