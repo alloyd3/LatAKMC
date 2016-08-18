@@ -39,7 +39,7 @@ StatsOut = True               # Recieve extra information from your run
 useBasin = True            # Booleon: use the basin method or not
 basinBarrierTol = 0.21      # barriers below this are considered in a basin (eV)
 basinBarrierSubTol = 0.40   # if one barrier is above this, it is considered an escaping transition not internal
-basinDistTol = 0.3         # distance between states to be considered the same state (A)
+basinDistTol = 0.6         # distance between states to be considered the same state (A)
 checkMoveDist = 2          # distance used in checkMoveDist. Do not allow an atom to move within this distance of another atom. Needed for basin method
 reverseBarrierTol = 0.03   # Tolerance to allow transitions with reverse barriers greater than this only
 
@@ -723,18 +723,32 @@ def PBCpos(x,box_x):
 	return x
 
 def PBCdistance(x1,y1,z1,x2,y2,z2):
-    rx = x2-x1
-    ry = y2-y1
-    rz = z2-z1
+    # rx = x2-x1
+    # ry = y2-y1
+    # rz = z2-z1
+    #
+    # # assume PBC in x and z
+    # rx = rx - round( rx / box_x) * box_x
+    # #ry = ry - round( ry / box_y) * box_y
+    # rz = rz - round( rz / box_z) * box_z
+    #
+    # # square of distance
+    # r2 = rx * rx + ry * ry + rz * rz
 
-    # assume PBC in x and z
-    rx = rx - round( rx / box_x) * box_x
-    #ry = ry - round( ry / box_y) * box_y
-    rz = rz - round( rz / box_z) * box_z
+    pos1 = np.empty(3, np.float64)
+    pos1[0] = x1
+    pos1[1] = y1
+    pos1[2] = z1
+    pos2 = np.empty(3, np.float64)
+    pos2[0] = x2
+    pos2[1] = y2
+    pos2[2] = z2
+    cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
+    sepVec = Vectors.separationVector(pos1,pos2,cellDims)
+    mag = Vectors.magnitude(sepVec)
 
-    # square of distance
-    r2 = rx * rx + ry * ry + rz * rz
-    return r2
+
+    return mag
 
 # find x and z of the 6 positions surrounding points (1-6)
 def findNeighbours(x,z,atom_below,y_max_0,full_depo_index):
@@ -943,7 +957,7 @@ def moveAtom(depo_list, dir_vector ,full_depo_index):
         y2 = atom[2]
         z2 = atom[3]
         if y > initial_surface_height:
-            if PBCdistance(x,y,z,x2,y2,z2) < checkMoveDist*2:
+            if PBCdistance(x,y,z,x2,y2,z2) < checkMoveDist:
                 del new_full_list
                 return None
 
@@ -1021,7 +1035,7 @@ def checkMove(chosenEvent, chosenAtom, full_depo_list):
         y = atom[2]
         z = atom[3]
         if y > initial_surface_height:
-            if PBCdistance(x,y,z,chosenEvent[0],chosenEvent[1],chosenEvent[2]) < checkMoveDist*2:
+            if PBCdistance(x,y,z,chosenEvent[0],chosenEvent[1],chosenEvent[2]) < checkMoveDist:
                 return False
 
     return True
@@ -1033,7 +1047,7 @@ def findVolumeAtoms(lattice_pos,x,y,z):
     for i in xrange(len(lattice_pos)/3):
         # find distance squared between 2 atoms
         dist = PBCdistance(lattice_pos[3*i],lattice_pos[3*i+1],lattice_pos[3*i+2],x,y,z)
-        if dist < (graphRad * graphRad):
+        if dist < graphRad:
             volume_atoms.append(i)
 
     return volume_atoms
