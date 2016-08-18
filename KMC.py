@@ -147,7 +147,7 @@ class basin(object):
         else:
             flag = 1
 
-        # if PBC_distance(iniPos[0],iniPos[1],iniPos[2],finPos[0],finPos[1],finPos[2]) < basinDistTol:
+        # if PBCdistance(iniPos[0],iniPos[1],iniPos[2],finPos[0],finPos[1],finPos[2]) < basinDistTol:
         #     return
 
         createFlagF = 1
@@ -155,7 +155,7 @@ class basin(object):
         # check if initial position exists in the basin
         for i in range(len(self.basinPos)):
             pos = self.basinPos[i].iniPos
-            if PBC_distance(iniPos[0],iniPos[1],iniPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
+            if PBCdistance(iniPos[0],iniPos[1],iniPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
                 createFlagF = 0
                 break
         # if does not exist, add
@@ -172,7 +172,7 @@ class basin(object):
             # check if this transition already exists in the basin
             createFlagF = 1
             for trans in self.basinPos[i].transitionList:
-                if PBC_distance(finPos[0],finPos[1],finPos[2],trans.finPos[0],trans.finPos[1],trans.finPos[2]) < basinDistTol:
+                if PBCdistance(finPos[0],finPos[1],finPos[2],trans.finPos[0],trans.finPos[1],trans.finPos[2]) < basinDistTol:
                     createFlagF = 0
             # if not, add transition
             if createFlagF:
@@ -188,7 +188,7 @@ class basin(object):
         # check final position exists in the basin
         for j in range(len(self.basinPos)):
             pos = self.basinPos[j].iniPos
-            if PBC_distance(finPos[0],finPos[1],finPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
+            if PBCdistance(finPos[0],finPos[1],finPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
                 createFlag = 0
                 finalInBasin = 1
                 break
@@ -196,7 +196,7 @@ class basin(object):
         # if does not exist, add
         if createFlag and not flag:
             j = len(self.basinPos)
-            revRate = calc_rate(reverseBarrier)
+            revRate = calcRate(reverseBarrier)
             newTransR = basinTransition(iniPos,revRate,reverseBarrier,barrier)
             newTransR.finRef = i
             newPosR = basinPosition()
@@ -210,7 +210,7 @@ class basin(object):
             # check transition exists in the basin
             createFlag = 1
             for trans in self.basinPos[j].transitionList:
-                if PBC_distance(iniPos[0],iniPos[1],iniPos[2],trans.finPos[0],trans.finPos[1],trans.finPos[2]) < basinDistTol:
+                if PBCdistance(iniPos[0],iniPos[1],iniPos[2],trans.finPos[0],trans.finPos[1],trans.finPos[2]) < basinDistTol:
                     createFlag = 0
             # add transition if not
             if createFlag:
@@ -221,7 +221,7 @@ class basin(object):
         elif not createFlag and flag:
             createFlag = 1
             for trans in self.basinPos[j].transitionList:
-                if PBC_distance(iniPos[0],iniPos[1],iniPos[2],trans.finPos[0],trans.finPos[1],trans.finPos[2]) < basinDistTol:
+                if PBCdistance(iniPos[0],iniPos[1],iniPos[2],trans.finPos[0],trans.finPos[1],trans.finPos[2]) < basinDistTol:
                     createFlag = 0
             # add transition if not
             if createFlag:
@@ -239,9 +239,9 @@ class basin(object):
                 for trans in basPos.transitionList:
                     tPos = trans.finPos
                     if trans.finRef is None:
-                        if PBC_distance(tPos[0],tPos[1],tPos[2],finPos[0],finPos[1],finPos[2]) < basinDistTol:
+                        if PBCdistance(tPos[0],tPos[1],tPos[2],finPos[0],finPos[1],finPos[2]) < basinDistTol:
                             trans.finRef = j
-                            rate = calc_rate(trans.reverseBarrier)
+                            rate = calcRate(trans.reverseBarrier)
                             newTransM = basinTransition(basPos.iniPos,rate,trans.reverseBarrier,trans.barrier)
                             print "MATCH MADE WITH FINAL POS"
 
@@ -254,7 +254,7 @@ class basin(object):
         for i in range(len(self.basinPos)):
             pos = self.basinPos[i]
             cPos = self.currentPos
-            if PBC_distance(pos.iniPos[0],pos.iniPos[1],pos.iniPos[2],cPos[0],cPos[1],cPos[2]) < basinDistTol:
+            if PBCdistance(pos.iniPos[0],pos.iniPos[1],pos.iniPos[2],cPos[0],cPos[1],cPos[2]) < basinDistTol:
                 cDV = i
             for j in range(len(pos.transitionList)):
                 trans = pos.transitionList[j]
@@ -285,12 +285,12 @@ class basin(object):
     # check if position is in this basin
     def thisBasin(self, pos, step):
         # cPos = self.currentPos
-        # if PBC_distance(cPos[0],cPos[1],cPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
+        # if PBCdistance(cPos[0],cPos[1],cPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
         #     return True
 
         for basPos in self.basinPos:
             bPos = basPos.iniPos
-            if PBC_distance(bPos[0],bPos[1],bPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
+            if PBCdistance(bPos[0],bPos[1],bPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
                 # self.basinReport(step)
                 basPos.explored = 1
                 return True
@@ -298,7 +298,7 @@ class basin(object):
         # for basPos in self.basinPos:
         #     for trans in basPos.transitionList:
         #         tPos = trans.finPos
-        #         if PBC_distance(tPos[0],tPos[1],tPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
+        #         if PBCdistance(tPos[0],tPos[1],tPos[2],pos[0],pos[1],pos[2]) < basinDistTol:
         #             # print "pos: ", pos, "CurrentPos: ", self.currentPos
         #             print "MATCH MADE WITH FINAL POS"
         #             # self.basinReport(step)
@@ -343,7 +343,7 @@ class basin(object):
         for k in range(len(stateMapping)):
             state = stateMapping[k]
             q = self.basinPos[state]
-            if PBC_distance(q.iniPos[0],q.iniPos[1],q.iniPos[2],self.currentPos[0],self.currentPos[1],self.currentPos[2]) < basinDistTol:
+            if PBCdistance(q.iniPos[0],q.iniPos[1],q.iniPos[2],self.currentPos[0],self.currentPos[1],self.currentPos[2]) < basinDistTol:
                 startDV = k
                 break
 
@@ -468,17 +468,17 @@ class basin(object):
         outf.close()
 
 # calculate the rate of an event given barrier height (Arrhenius eq.)
-def calc_rate(barrier):
+def calcRate(barrier):
     rate = prefactor * math.exp(- barrier / (boltzmann * temperature))
     return rate
 
 # find barrier height given rate
-def find_barrier_height(rate):
+def findBarrierHeight(rate):
     barrier = round(- math.log(rate / prefactor) * (boltzmann * temperature),6)
     return barrier
 
 # read lattice header at input filename
-def read_lattice_header(input_lattice_path):
+def readLatticeHeader(input_lattice_path):
     file = open(input_lattice_path, 'r')
     latline = file.readline()
     line = latline.split()
@@ -492,7 +492,7 @@ def read_lattice_header(input_lattice_path):
     return atoms,box_x,box_y,box_z
 
 # read in lattice file
-def read_lattice(lattice,m):
+def readLattice(lattice,m):
     if (os.path.isfile(lattice)):
         input_file = open(lattice, 'r')
         for i in range(0,m):
@@ -513,7 +513,7 @@ def read_lattice(lattice,m):
     input_file.close()
 
 # function reads of lattice, and finds the maximum y-coordinate
-def find_max_height(input_lattice_path):
+def findMaxHeight(input_lattice_path):
     max_height = 0.0
     if (os.path.isfile(input_lattice_path)):
         input_file = open(input_lattice_path, 'r')
@@ -530,12 +530,12 @@ def find_max_height(input_lattice_path):
         input_file.close()
         return max_height
     else:
-        print " Input file not found in find_max_height(input_filename) function"
+        print " Input file not found in findMaxHeight(input_filename) function"
         print input_lattice_path
         sys.exit()
 
 # find max height and species of max atom at a point in the x,z plane
-def find_max_height_at_points(surface_lattice, full_depo_index, x, z):
+def findMaxHeightAtPoints(surface_lattice, full_depo_index, x, z):
     max_height = 0.0
     max_height_atom = None
     full_lattice = surface_lattice + full_depo_index
@@ -543,9 +543,9 @@ def find_max_height_at_points(surface_lattice, full_depo_index, x, z):
     # check each x value in lattice against given x
     for i in xrange(len(full_lattice)):
         line = full_lattice[i]
-        new_x = round(PBC_pos(float(line[1])-x,box_x),2)
+        new_x = round(PBCpos(float(line[1])-x,box_x),2)
         if new_x == 0 or new_x == round(box_x,2):
-            new_z = round(PBC_pos(float(line[3])-z,box_z),2)
+            new_z = round(PBCpos(float(line[3])-z,box_z),2)
 
             # if x value is the same, check z value
             if new_z == 0 or new_z == round(box_z,2):
@@ -557,30 +557,30 @@ def find_max_height_at_points(surface_lattice, full_depo_index, x, z):
     return max_height, max_height_atom
 
 # function reads off lattice, and finds atom below a point
-def find_atom_below(surface_lattice, full_depo_index,x,z):
-    max_height = 0.0
-    max_height_atom = None
-    atom_below = None
-
-    # check each x value in lattice against given x
-    full_lattice = surface_lattice + full_depo_index
-    for i in xrange(len(full_lattice)):
-        line = full_lattice[i]
-        new_x = round(PBC_pos(float(line[1])-x,box_x),2)
-        if new_x == 0 or new_x == round(box_x,2):
-            new_z = round(PBC_pos(float(line[3])-z,box_z),2)
-
-            # if x value is the same, check z value
-            if new_z == 0 or new_z == round(box_z,2):
-                atom_below = max_height_atom
-                max_height = float(line[2])
-                max_height_atom = str(line[0])
-
-    del full_lattice
-    return max_height, atom_below
+# def find_atom_below(surface_lattice, full_depo_index,x,z):
+#     max_height = 0.0
+#     max_height_atom = None
+#     atom_below = None
+#
+#     # check each x value in lattice against given x
+#     full_lattice = surface_lattice + full_depo_index
+#     for i in xrange(len(full_lattice)):
+#         line = full_lattice[i]
+#         new_x = round(PBCpos(float(line[1])-x,box_x),2)
+#         if new_x == 0 or new_x == round(box_x,2):
+#             new_z = round(PBCpos(float(line[3])-z,box_z),2)
+#
+#             # if x value is the same, check z value
+#             if new_z == 0 or new_z == round(box_z,2):
+#                 atom_below = max_height_atom
+#                 max_height = float(line[2])
+#                 max_height_atom = str(line[0])
+#
+#     del full_lattice
+#     return max_height, atom_below
 
 # find how many grid points in each direction
-def grid_size(box_x,box_y,box_z):
+def gridSize(box_x,box_y,box_z):
     #assuming first atom starts at 0,0,0
     x_grid_points = round(box_x/x_grid_dist)
     y_grid_points = round(box_y/y_grid_dist)
@@ -605,22 +605,22 @@ def deposition_xz(box_x,box_z,x_grid_dist,z_grid_dist):
 		even = 0
 
 	x_2 = x_coordinate * x_grid_dist
-	x_coordinate = PBC_pos(x_coordinate * x_grid_dist, box_x)
+	x_coordinate = PBCpos(x_coordinate * x_grid_dist, box_x)
 
 
 	z_coordinate = round((z_random * box_z * 0.5)/z_grid_dist)
-	z_coordinate = PBC_pos(z_coordinate * z_grid_dist * 2 + even * z_grid_dist, box_z)
+	z_coordinate = PBCpos(z_coordinate * z_grid_dist * 2 + even * z_grid_dist, box_z)
 
 	return x_coordinate ,z_coordinate
 
 # returns height of and species of neighbour atoms
 def deposition_y(full_depo_index,x_coord,z_coord):
     # max height at single point
-    #y_max_0, atom_below = find_max_height_at_point(lattice_path,x_coord,z_coord)
-    y_max_0, atom_below = find_max_height_at_points(surface_lattice, full_depo_index,x_coord, z_coord)
+    #y_max_0, atom_below = findMaxHeight_at_point(lattice_path,x_coord,z_coord)
+    y_max_0, atom_below = findMaxHeightAtPoints(surface_lattice, full_depo_index,x_coord, z_coord)
 
     # check height at surrounding points
-    neighbour_pos, neighbour_species = find_neighbours(x_coord,z_coord,atom_below,y_max_0,full_depo_index)
+    neighbour_pos, neighbour_species = findNeighbours(x_coord,z_coord,atom_below,y_max_0,full_depo_index)
     neighbour_heights = []
 
     i = 0
@@ -711,7 +711,7 @@ def setToLattice(full_depo_index):
 
 
 # find PBC position in one direction
-def PBC_pos(x,box_x):
+def PBCpos(x,box_x):
 	x = round(x,6)
 	box_x = round(box_x,6)
 	if x >= box_x:
@@ -722,7 +722,7 @@ def PBC_pos(x,box_x):
 			x = x + box_x
 	return x
 
-def PBC_distance(x1,y1,z1,x2,y2,z2):
+def PBCdistance(x1,y1,z1,x2,y2,z2):
     rx = x2-x1
     ry = y2-y1
     rz = z2-z1
@@ -737,31 +737,31 @@ def PBC_distance(x1,y1,z1,x2,y2,z2):
     return r2
 
 # find x and z of the 6 positions surrounding points (1-6)
-def find_neighbours(x,z,atom_below,y_max_0,full_depo_index):
-    n_x = PBC_pos(x + 2 * x_grid_dist,box_x)
+def findNeighbours(x,z,atom_below,y_max_0,full_depo_index):
+    n_x = PBCpos(x + 2 * x_grid_dist,box_x)
     n_z = z
 
-    nw_x = PBC_pos(x + 1 * x_grid_dist,box_x)
-    nw_z = PBC_pos(z - 1 * z_grid_dist,box_z)
+    nw_x = PBCpos(x + 1 * x_grid_dist,box_x)
+    nw_z = PBCpos(z - 1 * z_grid_dist,box_z)
 
-    sw_x = PBC_pos(x - 1 * x_grid_dist,box_x)
-    sw_z = PBC_pos(z - 1 * z_grid_dist,box_z)
+    sw_x = PBCpos(x - 1 * x_grid_dist,box_x)
+    sw_z = PBCpos(z - 1 * z_grid_dist,box_z)
 
-    s_x = PBC_pos(x - 2 * x_grid_dist,box_x)
+    s_x = PBCpos(x - 2 * x_grid_dist,box_x)
     s_z = z
 
-    se_x = PBC_pos(x - 1 * x_grid_dist,box_x)
-    se_z = PBC_pos(z + 1 * z_grid_dist,box_z)
+    se_x = PBCpos(x - 1 * x_grid_dist,box_x)
+    se_z = PBCpos(z + 1 * z_grid_dist,box_z)
 
-    ne_x = PBC_pos(x + 1 * x_grid_dist,box_x)
-    ne_z = PBC_pos(z + 1 * z_grid_dist,box_z)
+    ne_x = PBCpos(x + 1 * x_grid_dist,box_x)
+    ne_z = PBCpos(z + 1 * z_grid_dist,box_z)
 
-    n_y, n = find_max_height_at_points(surface_lattice,full_depo_index,n_x,n_z)
-    nw_y, nw = find_max_height_at_points(surface_lattice,full_depo_index,nw_x,nw_z)
-    sw_y, sw = find_max_height_at_points(surface_lattice,full_depo_index,sw_x,sw_z)
-    s_y, s = find_max_height_at_points(surface_lattice,full_depo_index,s_x,s_z)
-    se_y, se = find_max_height_at_points(surface_lattice,full_depo_index,se_x,se_z)
-    ne_y, ne = find_max_height_at_points(surface_lattice,full_depo_index,ne_x,ne_z)
+    n_y, n = findMaxHeightAtPoints(surface_lattice,full_depo_index,n_x,n_z)
+    nw_y, nw = findMaxHeightAtPoints(surface_lattice,full_depo_index,nw_x,nw_z)
+    sw_y, sw = findMaxHeightAtPoints(surface_lattice,full_depo_index,sw_x,sw_z)
+    s_y, s = findMaxHeightAtPoints(surface_lattice,full_depo_index,s_x,s_z)
+    se_y, se = findMaxHeightAtPoints(surface_lattice,full_depo_index,se_x,se_z)
+    ne_y, ne = findMaxHeightAtPoints(surface_lattice,full_depo_index,ne_x,ne_z)
 
     neighbour_species = [atom_below,n,nw,sw,ne,se,s]
     #print neighbour_species
@@ -771,60 +771,60 @@ def find_neighbours(x,z,atom_below,y_max_0,full_depo_index):
 
 # find list of second neighbours (1-12)
 # returns coordinates and species
-def find_second_neighbours(x,z,full_depo_index):
+def findSecondNeighbours(x,z,full_depo_index):
     nb2 = []
     nb2_species = []
 
     # find x and z coordinates
-    nx = PBC_pos(x + 4 * x_grid_dist,box_x)
+    nx = PBCpos(x + 4 * x_grid_dist,box_x)
     nz = z
     nb2.append([nx, nz])
-    nx = PBC_pos(x + 3 * x_grid_dist,box_x)
-    nz = PBC_pos(z - 1 * z_grid_dist,box_z)
+    nx = PBCpos(x + 3 * x_grid_dist,box_x)
+    nz = PBCpos(z - 1 * z_grid_dist,box_z)
     nb2.append([nx, nz])
-    nx = PBC_pos(x + 2 * x_grid_dist,box_x)
-    nz = PBC_pos(z - 2 * z_grid_dist,box_z)
+    nx = PBCpos(x + 2 * x_grid_dist,box_x)
+    nz = PBCpos(z - 2 * z_grid_dist,box_z)
     nb2.append([nx, nz])
     nx = x
-    nz = PBC_pos(z - 2 * z_grid_dist,box_z)
+    nz = PBCpos(z - 2 * z_grid_dist,box_z)
     nb2.append([nx, nz])
-    nx = PBC_pos(x - 2 * x_grid_dist,box_x)
-    nz = PBC_pos(z - 2 * z_grid_dist,box_z)
+    nx = PBCpos(x - 2 * x_grid_dist,box_x)
+    nz = PBCpos(z - 2 * z_grid_dist,box_z)
     nb2.append([nx, nz])
-    nx = PBC_pos(x - 3 * x_grid_dist,box_x)
-    nz = PBC_pos(z - 1 * z_grid_dist,box_z)
+    nx = PBCpos(x - 3 * x_grid_dist,box_x)
+    nz = PBCpos(z - 1 * z_grid_dist,box_z)
     nb2.append([nx, nz])
 
-    nx = PBC_pos(x - 4 * x_grid_dist,box_x)
+    nx = PBCpos(x - 4 * x_grid_dist,box_x)
     nz = z
     nb2.append([nx, nz])
-    nx = PBC_pos(x - 3 * x_grid_dist,box_x)
-    nz = PBC_pos(z + 1 * z_grid_dist,box_z)
+    nx = PBCpos(x - 3 * x_grid_dist,box_x)
+    nz = PBCpos(z + 1 * z_grid_dist,box_z)
     nb2.append([nx, nz])
-    nx = PBC_pos(x - 2 * x_grid_dist,box_x)
-    nz = PBC_pos(z + 2 * z_grid_dist,box_z)
+    nx = PBCpos(x - 2 * x_grid_dist,box_x)
+    nz = PBCpos(z + 2 * z_grid_dist,box_z)
     nb2.append([nx, nz])
     nx = x
-    nz = PBC_pos(z + 2 * z_grid_dist,box_z)
+    nz = PBCpos(z + 2 * z_grid_dist,box_z)
     nb2.append([nx, nz])
-    nx = PBC_pos(x + 2 * x_grid_dist,box_x)
-    nz = PBC_pos(z + 2 * z_grid_dist,box_z)
+    nx = PBCpos(x + 2 * x_grid_dist,box_x)
+    nz = PBCpos(z + 2 * z_grid_dist,box_z)
     nb2.append([nx, nz])
-    nx = PBC_pos(x + 3 * x_grid_dist,box_x)
-    nz = PBC_pos(z + 1 * z_grid_dist,box_z)
+    nx = PBCpos(x + 3 * x_grid_dist,box_x)
+    nz = PBCpos(z + 1 * z_grid_dist,box_z)
     nb2.append([nx, nz])
 
     # find y and species
     for k in xrange(len(nb2)):
         nx, nz = nb2[k]
-        ny, species = find_max_height_at_points(surface_lattice,full_depo_index,nx,nz)
+        ny, species = findMaxHeightAtPoints(surface_lattice,full_depo_index,nx,nz)
         nb2[k] = [nx, ny, nz]
         nb2_species.append(species)
 
     return nb2, nb2_species
 
 # write out new lattice
-def write_lattice(index,full_depo_index,surface_lattice,natoms,time,barrier):
+def writeLattice(index,full_depo_index,surface_lattice,natoms,time,barrier):
     new_lattice = output_dir_name_prefac + '/KMC' + str(index) + '.dat'
     outfile = open(new_lattice, 'w')
     line = str(natoms)
@@ -850,7 +850,7 @@ def write_lattice(index,full_depo_index,surface_lattice,natoms,time,barrier):
     return
 
 # write temp lattice.dat file
-def write_lattice_LKMC(index,full_depo_index,surface_lattice,natoms):
+def writeLatticeLKMC(index,full_depo_index,surface_lattice,natoms):
     new_lattice = NEB_dir_name_prefac + str(index) + '.dat'
     outfile = open(new_lattice, 'w')
     line = str(natoms)
@@ -871,15 +871,15 @@ def write_lattice_LKMC(index,full_depo_index,surface_lattice,natoms):
     return
 
 # move event
-def move_atom(depo_list, dir_vector ,full_depo_index):
+def moveAtom(depo_list, dir_vector ,full_depo_index):
     moved_list = None
     x = depo_list[1]
     y = depo_list[2]
     z = depo_list[3]
 
-    x = round(PBC_pos(x+dir_vector[0]*x_grid_dist,box_x),6)
+    x = round(PBCpos(x+dir_vector[0]*x_grid_dist,box_x),6)
     y = round(y+dir_vector[1]*y_grid_dist2,6)
-    z = round(PBC_pos(z+dir_vector[2]*z_grid_dist,box_z),6)
+    z = round(PBCpos(z+dir_vector[2]*z_grid_dist,box_z),6)
 
     y2, neighbour_species, neighbour_heights = deposition_y(full_depo_index,x,z)
     #print neighbour_species
@@ -943,7 +943,7 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
         y2 = atom[2]
         z2 = atom[3]
         if y > initial_surface_height:
-            if PBC_distance(x,y,z,x2,y2,z2) < checkMoveDist*2:
+            if PBCdistance(x,y,z,x2,y2,z2) < checkMoveDist*2:
                 del new_full_list
                 return None
 
@@ -955,7 +955,7 @@ def move_atom(depo_list, dir_vector ,full_depo_index):
 
 
 # pick an event from an event list
-def choose_event(event_list,Time):
+def selectEvent(event_list,Time):
     # add on deposition event
 
     # print "Choose event from event list:"
@@ -973,11 +973,11 @@ def choose_event(event_list,Time):
                 TotalBarrier += float(event_list[i][3])
                 R.append([TotalRate,event_list[i][1],event_list[i][2],event_list[i][3]])
             except TypeError:
-                print "WARNING! Type error in choose_event: "
+                print "WARNING! Type error in selectEvent: "
                 print "Rate: ",  event_list[i][0], "\tBarrier: ", event_list[i][3]
                 sys.exit()
             except ValueError:
-                print "WARNING! Value error in choose_event: "
+                print "WARNING! Value error in selectEvent: "
                 print "Rate: ",  event_list[i][0], "\tBarrier: ", event_list[i][3]
                 sys.exit()
     TotalRate
@@ -1021,18 +1021,18 @@ def checkMove(chosenEvent, chosenAtom, full_depo_list):
         y = atom[2]
         z = atom[3]
         if y > initial_surface_height:
-            if PBC_distance(x,y,z,chosenEvent[0],chosenEvent[1],chosenEvent[2]) < checkMoveDist*2:
+            if PBCdistance(x,y,z,chosenEvent[0],chosenEvent[1],chosenEvent[2]) < checkMoveDist*2:
                 return False
 
     return True
 
 # calcuate list of atoms with graph radius of defect
-def find_volume_atoms(lattice_pos,x,y,z):
+def findVolumeAtoms(lattice_pos,x,y,z):
     volume_atoms = []
 
     for i in xrange(len(lattice_pos)/3):
         # find distance squared between 2 atoms
-        dist = PBC_distance(lattice_pos[3*i],lattice_pos[3*i+1],lattice_pos[3*i+2],x,y,z)
+        dist = PBCdistance(lattice_pos[3*i],lattice_pos[3*i+1],lattice_pos[3*i+2],x,y,z)
         if dist < (graphRad * graphRad):
             volume_atoms.append(i)
 
@@ -1118,7 +1118,7 @@ def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
     depo_list = full_depo[atom_index]
 
     # move atom to final position
-    moved_list = move_atom(depo_list, dir_vector ,full_depo)
+    moved_list = moveAtom(depo_list, dir_vector ,full_depo)
 
     if moved_list:
         full_depo[atom_index] = moved_list
@@ -1133,19 +1133,19 @@ def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
         specie_list = surface_specie + adatom_specie
 
         # find atoms in defect volume
-        volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
+        volumeAtoms = findVolumeAtoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
 
         # create hashkey
         final_key = hashkey(lattice_positions,specie_list,volumeAtoms)
 
-        #write_lattice(1000,full_depo_index,surface_lattice,401,0,0)
+        #writeLattice(1000,full_depo_index,surface_lattice,401,0,0)
         del full_depo
         return final_key, [float(depo_list[1]),float(depo_list[2]),float(depo_list[3])]
     else:
         return None, None
 
 # create the list of possible events
-def create_events_list(full_depo_index,surface_lattice, volumes):
+def createEventsList(full_depo_index,surface_lattice, volumes):
 
     event_list = []
     adatom_positions = []
@@ -1172,7 +1172,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
         hashkeyExists = []
 
         # find atoms in volume
-        volumeAtoms = find_volume_atoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
+        volumeAtoms = findVolumeAtoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
 
         # create hashkey for each adatom + store volume
         vol_key = hashkey(lattice_positions,specie_list,volumeAtoms)
@@ -1228,7 +1228,7 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                         result, vol = singleNEB(direc,full_depo_index,surface_lattice,j,vol_key,final_key,natoms,vol,initialMinimised)
                         if result:
                             if result[2] != "None":
-                                rate = calc_rate(float(result[2]))
+                                rate = calcRate(float(result[2]))
                                 if useBasin:
                                     bas.addTransition(iniPos,final_pos,rate,float(result[2]),vol.finalKeys[final_key].reverseBarrier)
                                     if float(result[2]) < basinBarrierTol or vol.finalKeys[final_key].reverseBarrier < basinBarrierTol:
@@ -1262,6 +1262,8 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
                 bas.buildConnectivity()
                 events = bas.addChangedEvents(j)
                 event_list = event_list + events
+
+                # remove small basins
                 if len(bas.basinPos) < 2:
                     basinList.pop(whichB)
 
@@ -1272,17 +1274,17 @@ def create_events_list(full_depo_index,surface_lattice, volumes):
     return event_list, volumes
 
 # check if event exists
-def add_to_events(final_keys,hashkey,barrier,index,directions,hashkeyExists):
-    events = []
-
-    for k in xrange(len(final_keys)):
-        if hashkey == final_keys[k]:
-            if barrier != "None":
-                rate = calc_rate(float(barrier))
-                events.append([rate,index,directions[k],barrier])
-            hashkeyExists[k] = 1
-
-    return events, hashkeyExists
+# def add_to_events(final_keys,hashkey,barrier,index,directions,hashkeyExists):
+#     events = []
+#
+#     for k in xrange(len(final_keys)):
+#         if hashkey == final_keys[k]:
+#             if barrier != "None":
+#                 rate = calcRate(float(barrier))
+#                 events.append([rate,index,directions[k],barrier])
+#             hashkeyExists[k] = 1
+#
+#     return events, hashkeyExists
 
 
 # run NEB to find barriers that are not known
@@ -1296,7 +1298,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
     keepBasin = False
 
     # create initial lattice
-    write_lattice_LKMC('/initial',full_depo_index,surface_lattice,natoms)
+    writeLatticeLKMC('/initial',full_depo_index,surface_lattice,natoms)
     ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
     iniMin = copy.deepcopy(ini)
     iniMin.calcForce(correctTE=1)
@@ -1346,7 +1348,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
         if IncludeUpTrans:
             #check if surrounds atom
             AdNeighbours = 0
-            nb_pos, nb_species = find_second_neighbours(full_depo_index[atom_index][1],full_depo_index[atom_index][3],full_depo_index)
+            nb_pos, nb_species = findSecondNeighbours(full_depo_index[atom_index][1],full_depo_index[atom_index][3],full_depo_index)
             for j in xrange(len(nb_pos)):
                 if round(nb_pos[j][1] - atom_height,2) == 0:
                     if nb_species[j] == atom_species:
@@ -1365,7 +1367,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
 
         for i in xrange(len(dir_vector)):
             # move atom
-            moved_list = move_atom(depo_list, dir_vector[i] ,full_depo_index)
+            moved_list = moveAtom(depo_list, dir_vector[i] ,full_depo_index)
             print "Trying direction: ", dir_vector[i]
             vol.addDirection(dir_vector[i])
 
@@ -1373,7 +1375,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
                 full_depo[atom_index] = moved_list
 
                 # create initial lattice and Minimise
-                write_lattice_LKMC('/'+str(i),full_depo,surface_lattice,natoms)
+                writeLatticeLKMC('/'+str(i),full_depo,surface_lattice,natoms)
                 fin = Lattice.readLattice(NEB_dir_name_prefac+"/" + str(i) +".dat")
                 finMin = copy.deepcopy(fin)
 
@@ -1434,7 +1436,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
 
                     # find final hashkey
                     final_key, final_pos = findFinal(dir_vector[i],atom_index,full_depo_index,surface_positions)
-                    rate = calc_rate(neb.barrier)
+                    rate = calcRate(neb.barrier)
                     results.append([rate, atom_index, final_pos, neb.barrier])
                     vol.addTrans(dir_vector[i], final_key, neb.barrier, rate, reverseBarrier)
 
@@ -1483,7 +1485,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
     # create initial lattice
 
     if initialMinimised == False:
-        write_lattice_LKMC('/initial',full_depo_index,surface_lattice,natoms)
+        writeLatticeLKMC('/initial',full_depo_index,surface_lattice,natoms)
         ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
         iniMin = copy.deepcopy(ini)
 
@@ -1509,13 +1511,13 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
         depo_list = full_depo[atom_index]
 
         # move atom
-        moved_list = move_atom(depo_list, direction ,full_depo_index)
+        moved_list = moveAtom(depo_list, direction ,full_depo_index)
 
         if moved_list:
             full_depo[atom_index] = moved_list
 
             # create initial lattice and Minimise
-            write_lattice_LKMC('/6',full_depo,surface_lattice,natoms)
+            writeLatticeLKMC('/6',full_depo,surface_lattice,natoms)
             fin = Lattice.readLattice(NEB_dir_name_prefac+"/" + '6' +".dat")
             finMin = copy.deepcopy(fin)
             Index, maxMove, avgMove, Sep = Vectors.maxMovement(iniMin.pos, finMin.pos, cellDims)
@@ -1589,7 +1591,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
 
                 results = [direction, final_key, barrier]
                 results[0] = map(int,results[0])
-                rate = calc_rate(barrier)
+                rate = calcRate(barrier)
                 vol.addTrans(results[0], final_key, barrier, rate, reverseBarrier)
                 print direction
             else:
@@ -1693,7 +1695,7 @@ def readVolumes(volumes):
     return volumes
 
 # write stats to a file
-def StatsOutput(event_list,CurrentStep,numAdatoms):
+def statsOutput(event_list,CurrentStep,numAdatoms):
     statsFile = Stats_dir + '/Stats.txt'
     if (os.path.isfile(statsFile)):
         outfile = open(statsFile, 'a')
@@ -1792,17 +1794,17 @@ if StatsOut:
 print "~"*80
 
 # read lattice header
-natoms,box_x,box_y,box_z = read_lattice_header(input_lattice_path)
+natoms,box_x,box_y,box_z = readLatticeHeader(input_lattice_path)
 print "Initial atoms  : ",natoms
 print "Lattice size: ",box_x,box_y,box_z, " Angstroms"
 sys.stdout.flush()
 
 # Y-height of initial lattice
-initial_surface_height = find_max_height(input_lattice_path)
+initial_surface_height = findMaxHeight(input_lattice_path)
 print "initial_surface_height: ", initial_surface_height
 
 # store whole surface lattice first
-surface_lattice = read_lattice(input_lattice_path,2)
+surface_lattice = readLattice(input_lattice_path,2)
 for i in xrange(len(surface_lattice)):
     surface_specie.append(surface_lattice[i][0])
     surface_positions.append(round(surface_lattice[i][1],6))
@@ -1814,8 +1816,8 @@ params = Input.getLKMCParams(1, "", "lkmcInput.IN")
 Input.readGlobals("lkmcInput.IN")
 volumes = readVolumes(volumes)
 
-# find size of grid_size
-x_grid_points, y_grid_points, z_grid_points, box_x, box_z = grid_size(box_x,initial_surface_height,box_z)
+# find size of gridSize
+x_grid_points, y_grid_points, z_grid_points, box_x, box_z = gridSize(box_x,initial_surface_height,box_z)
 print "grid size: %d * %d * %d" % (x_grid_points,y_grid_points,z_grid_points)
 if (x_grid_points%6):
     print " WARNING WARNING: x grid points must be a multiple of 6 for PBC to work"
@@ -1842,7 +1844,7 @@ if jobStatus == 'CNTIN':
             Time = float(latline)
             input_file.close()
 
-            full_depo_list = read_lattice(output_dir_name_prefac + '/KMC' + str(num-1) + '.dat',orig_len+4)
+            full_depo_list = readLattice(output_dir_name_prefac + '/KMC' + str(num-1) + '.dat',orig_len+4)
 
             # add adatoms to full_depo_list
             for i in xrange(len(full_depo_list)):
@@ -1862,7 +1864,7 @@ while CurrentStep < (numberDepos):
         print "Current Step: ", CurrentStep
         natoms = depo_list[4]
         full_depo_list.append(depo_list)
-        write_lattice(CurrentStep,full_depo_list,surface_lattice,natoms,0,0)
+        writeLattice(CurrentStep,full_depo_list,surface_lattice,natoms,0,0)
         print "Writing lattice: KMC 0"
         CurrentStep += 1
 
@@ -1881,7 +1883,7 @@ while CurrentStep < (total_steps + 1):
     print "Current Step: ", CurrentStep
 
     # check if in same position as 2 steps ago
-    event_list, volumes = create_events_list(full_depo_list,surface_lattice, volumes)
+    event_list, volumes = createEventsList(full_depo_list,surface_lattice, volumes)
 
     # write out volumes file
     if CurrentStep%volumesOutEvery == 0 or CurrentStep == total_steps:
@@ -1889,14 +1891,14 @@ while CurrentStep < (total_steps + 1):
 
     # write out stats
     if StatsOut:
-        StatsOutput(event_list,CurrentStep,len(full_depo_list))
+        statsOutput(event_list,CurrentStep,len(full_depo_list))
 
-    bar = find_barrier_height(depoRate)
+    bar = findBarrierHeight(depoRate)
     event_list.append([depoRate,0,['Depo'],bar])
 
     # choose event
     while 1:
-        chosenRate, chosenEvent, chosenAtom, Time, chosenBarrier, i = choose_event(event_list, Time)
+        chosenRate, chosenEvent, chosenAtom, Time, chosenBarrier, i = selectEvent(event_list, Time)
 
         if chosenEvent[0] == 'Depo':
             break
@@ -1928,7 +1930,7 @@ while CurrentStep < (total_steps + 1):
                 full_depo_list.append(depo_list)
 
                 # Minimise after each deposition
-                write_lattice_LKMC('/initial',full_depo_list,surface_lattice,natoms)
+                writeLatticeLKMC('/initial',full_depo_list,surface_lattice,natoms)
                 ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
                 iniMin = copy.deepcopy(ini)
                 # create cell dimensions
@@ -1947,11 +1949,11 @@ while CurrentStep < (total_steps + 1):
                         index += 1
                         # delete basins if deposition occurs
                         basinList = []
-                        write_lattice_LKMC('/reset',full_depo_list,surface_lattice,natoms)
+                        writeLatticeLKMC('/reset',full_depo_list,surface_lattice,natoms)
                         # sys.exit()
                     else:
                         full_depo2 = setToLattice(full_depo_list)
-                        write_lattice_LKMC('/reset',full_depo2,surface_lattice,natoms)
+                        writeLatticeLKMC('/reset',full_depo2,surface_lattice,natoms)
                         full_depo_list = full_depo_backup
                         # sys.exit()
         CurrentStep += 1
@@ -1970,7 +1972,7 @@ while CurrentStep < (total_steps + 1):
         print "Writing lattice: KMC", latticeNo
 
         Barrier = chosenBarrier
-        write_lattice(latticeNo,full_depo_list,surface_lattice,natoms,Time,Barrier)
+        writeLattice(latticeNo,full_depo_list,surface_lattice,natoms,Time,Barrier)
 
 
     print "-" * 80
