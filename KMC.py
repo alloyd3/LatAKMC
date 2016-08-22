@@ -37,7 +37,7 @@ IncludeUpTrans = 0          # Booleon: Include transitions up step edges (turnin
 IncludeDownTrans = 1        # Booleon: Include transitions down step edges
 StatsOut = True               # Recieve extra information from your run
 useBasin = True            # Booleon: use the basin method or not
-basinBarrierTol = 0.21      # barriers below this are considered in a basin (eV)
+basinBarrierTol = 0.25      # barriers below this are considered in a basin (eV)
 basinBarrierSubTol = 0.40   # if one barrier is above this, it is considered an escaping transition not internal
 basinDistTol = 0.6         # distance between states to be considered the same state (A)
 checkMoveDist = 2          # distance used in checkMoveDist. Do not allow an atom to move within this distance of another atom. Needed for basin method
@@ -556,28 +556,6 @@ def findMaxHeightAtPoints(surface_lattice, full_depo_index, x, z):
     del full_lattice
     return max_height, max_height_atom
 
-# function reads off lattice, and finds atom below a point
-# def find_atom_below(surface_lattice, full_depo_index,x,z):
-#     max_height = 0.0
-#     max_height_atom = None
-#     atom_below = None
-#
-#     # check each x value in lattice against given x
-#     full_lattice = surface_lattice + full_depo_index
-#     for i in xrange(len(full_lattice)):
-#         line = full_lattice[i]
-#         new_x = round(PBCpos(float(line[1])-x,box_x),2)
-#         if new_x == 0 or new_x == round(box_x,2):
-#             new_z = round(PBCpos(float(line[3])-z,box_z),2)
-#
-#             # if x value is the same, check z value
-#             if new_z == 0 or new_z == round(box_z,2):
-#                 atom_below = max_height_atom
-#                 max_height = float(line[2])
-#                 max_height_atom = str(line[0])
-#
-#     del full_lattice
-#     return max_height, atom_below
 
 # find how many grid points in each direction
 def gridSize(box_x,box_y,box_z):
@@ -722,19 +700,8 @@ def PBCpos(x,box_x):
 			x = x + box_x
 	return x
 
+# find distance between 2 points inlcuding PBC
 def PBCdistance(x1,y1,z1,x2,y2,z2):
-    # rx = x2-x1
-    # ry = y2-y1
-    # rz = z2-z1
-    #
-    # # assume PBC in x and z
-    # rx = rx - round( rx / box_x) * box_x
-    # #ry = ry - round( ry / box_y) * box_y
-    # rz = rz - round( rz / box_z) * box_z
-    #
-    # # square of distance
-    # r2 = rx * rx + ry * ry + rz * rz
-
     pos1 = np.empty(3, np.float64)
     pos1[0] = x1
     pos1[1] = y1
@@ -746,7 +713,6 @@ def PBCdistance(x1,y1,z1,x2,y2,z2):
     cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
     sepVec = Vectors.separationVector(pos1,pos2,cellDims)
     mag = Vectors.magnitude(sepVec)
-
 
     return mag
 
@@ -1123,7 +1089,6 @@ def SaveVolume(hashkey,volumeAtoms,lattice_positions,specie_list):
         return
 
 
-
 # find the final hashkey for a given defect and transition
 def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
     adatom_positions = []
@@ -1267,6 +1232,7 @@ def createEventsList(full_depo_index,surface_lattice, volumes):
 
         del volumeAtoms
 
+        # add basin events to events list
         if useBasin:
             if not keepBasin:
                 events = bas.addUnchangedEvents(j)
@@ -1286,20 +1252,6 @@ def createEventsList(full_depo_index,surface_lattice, volumes):
     del adatom_positions
 
     return event_list, volumes
-
-# check if event exists
-# def add_to_events(final_keys,hashkey,barrier,index,directions,hashkeyExists):
-#     events = []
-#
-#     for k in xrange(len(final_keys)):
-#         if hashkey == final_keys[k]:
-#             if barrier != "None":
-#                 rate = calcRate(float(barrier))
-#                 events.append([rate,index,directions[k],barrier])
-#             hashkeyExists[k] = 1
-#
-#     return events, hashkeyExists
-
 
 # run NEB to find barriers that are not known
 def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
@@ -1513,6 +1465,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
     else:
         iniMin = initialMinimised
         ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
+
     # create cell dimensions
     cellDims = np.asarray([box_x,0,0,0,MaxHeight,0,0,0,box_z],dtype=np.float64)
 
@@ -1546,8 +1499,7 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
                 # add_to_trans_file(hashkey,results)
                 return results, vol
 
-            # minimise lattice
-
+            # minimise final lattice
             mini_fin = Minimise.getMinimiser(params)
             status = mini_fin.run(finMin)
             if status:
