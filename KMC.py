@@ -22,8 +22,8 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 #- User inputs hard coded in script
 jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 0  	        # number of initial depositions
-total_steps = 65000           # total number of steps to run
+numberDepos = 20  	        # number of initial depositions
+total_steps = 20000           # total number of steps to run
 latticeOutEvery = 5         # write output lattice every n steps
 volumesOutEvery = 10        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
@@ -42,6 +42,8 @@ basinBarrierSubTol = 0.40   # if one barrier is above this, it is considered an 
 basinDistTol = 0.6         # distance between states to be considered the same state (A)
 checkMoveDist = 2          # distance used in checkMoveDist. Do not allow an atom to move within this distance of another atom. Needed for basin method
 reverseBarrierTol = 0.03   # Tolerance to allow transitions with reverse barriers greater than this only
+maxCoordNum = 9            # max coordination to be considered a Defects
+bondDist = 3.4             # bond distance between atoms
 
 
 # for (0001) ZnO only
@@ -1009,14 +1011,19 @@ def checkMove(chosenEvent, chosenAtom, full_depo_list):
 # calcuate list of atoms with graph radius of defect
 def findVolumeAtoms(lattice_pos,x,y,z):
     volume_atoms = []
+    countBonds = 0
 
     for i in xrange(len(lattice_pos)/3):
         # find distance squared between 2 atoms
         dist = PBCdistance(lattice_pos[3*i],lattice_pos[3*i+1],lattice_pos[3*i+2],x,y,z)
         if dist < graphRad:
             volume_atoms.append(i)
-
-    return volume_atoms
+            if dist < bondDist:
+                countBonds += 1
+    if countBonds > maxCoordNum:
+        return volume_atoms, True
+    else:
+        return volume_atoms, False
 
 # calculate hashkey for a defect
 def hashkey(lattice_positions,specie_list,volumeAtoms):
@@ -1112,7 +1119,7 @@ def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
         specie_list = surface_specie + adatom_specie
 
         # find atoms in defect volume
-        volumeAtoms = findVolumeAtoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
+        volumeAtoms, _ = findVolumeAtoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
 
         # create hashkey
         final_key = hashkey(lattice_positions,specie_list,volumeAtoms)
@@ -1145,13 +1152,21 @@ def createEventsList(full_depo_index,surface_lattice, volumes):
 
     # find transitions for each adatom
     for j in xrange(len(full_depo_list)):
+
+        if j in fullyCoordList:
+            continue
+
         final_keys = []
         directions = []
         depo_list = full_depo_list[j]
         hashkeyExists = []
 
         # find atoms in volume
-        volumeAtoms = findVolumeAtoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
+        volumeAtoms, fullyCoord = findVolumeAtoms(lattice_positions,depo_list[1],depo_list[2],depo_list[3])
+
+        if fullyCoord:
+            fullyCoordList.append(j)
+            continue
 
         # create hashkey for each adatom + store volume
         vol_key = hashkey(lattice_positions,specie_list,volumeAtoms)
@@ -1251,7 +1266,7 @@ def createEventsList(full_depo_index,surface_lattice, volumes):
     del lattice_positions
     del adatom_positions
 
-    return event_list, volumes
+    return event_list, volumes, fullyCoordList
 
 # run NEB to find barriers that are not known
 def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
@@ -1709,6 +1724,7 @@ startTimeSub = time.time()
 CurrentStep = 0
 volumes = {}
 basinList = []
+fullyCoordList = []
 
 print "="*80
 print "~~~~~~~~ Starting lattice KMC ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -1849,7 +1865,8 @@ while CurrentStep < (total_steps + 1):
     print "Current Step: ", CurrentStep
 
     # check if in same position as 2 steps ago
-    event_list, volumes = createEventsList(full_depo_list,surface_lattice, volumes)
+    event_list, volumes, fullyCoordList = createEventsList(full_depo_list,surface_lattice, volumes)
+
 
     # write out volumes file
     if CurrentStep%volumesOutEvery == 0 or CurrentStep == total_steps:
@@ -1939,7 +1956,7 @@ while CurrentStep < (total_steps + 1):
 
         Barrier = chosenBarrier
         writeLattice(latticeNo,full_depo_list,surface_lattice,natoms,Time,Barrier)
-
+    print "Number of fully coordinated atoms: ", len(fullyCoordList)
 
     print "-" * 80
 
