@@ -22,20 +22,20 @@ from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 #- User inputs hard coded in script
 jobStatus = 'CNTIN'            # BEGIN or CNTIN run
 atom_species = 'Ag'         # species to deposit
-numberDepos = 20  	        # number of initial depositions
-total_steps = 20000           # total number of steps to run
-latticeOutEvery = 5         # write output lattice every n steps
-volumesOutEvery = 10        # write out volumes to file every n steps
+numberDepos = 35  	        # number of initial depositions
+total_steps = 100000           # total number of steps to run
+latticeOutEvery = 10         # write output lattice every n steps
+volumesOutEvery = 20        # write out volumes to file every n steps
 temperature = 300           # system temperature in Kelvin
 prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
 boltzmann = 8.62E-05        # Boltzmann constant (8.62E-05)
 graphRad = 5.9                # graph radius of defect volumes (Angstroms)
-depoRate = 1200            # deposition rate
+depoRate = 5184              # deposition rate
 maxMoveCriteria = 0.8        # maximum distance an atom can move after relaxation (pre NEB)
 MaxHeight = 30              # Dimension of cell in y direction (A)
 IncludeUpTrans = 0          # Booleon: Include transitions up step edges (turning off speeds up simulation)
 IncludeDownTrans = 1        # Booleon: Include transitions down step edges
-StatsOut = True               # Recieve extra information from your run
+StatsOut = False               # Recieve extra information from your run
 useBasin = True            # Booleon: use the basin method or not
 basinBarrierTol = 0.25      # barriers below this are considered in a basin (eV)
 basinBarrierSubTol = 0.40   # if one barrier is above this, it is considered an escaping transition not internal
@@ -272,11 +272,19 @@ class basin(object):
                         self.basinReport("Faulty")
                         sys.exit()
 
+        for i in range(len(self.connectivity)):
+            for j in range(len(self.connectivity)):
+                if j != i:
+                    if len(self.connectivity[i][j]) != len(self.connectivity[j][i]):
+                        print "Warning! Basin is non-symmetric"
+                        return False
+
         if len(self.connectivity) > 1:
             print "Connectivity matrix for atom %d:" % self.atomNum
             for i in range(N):
                 print self.connectivity[i]
 
+        return True
         # print "Current DV explored: ", self.basinPos[cDV].explored
         # explor = []
         # for i in range(N):
@@ -341,26 +349,9 @@ class basin(object):
                     transMatrix[j][i] += tao1[i] * self.basinPos[stateMapping[i]].transitionList[k].rate
 
 
-
-        for k in range(len(stateMapping)):
-            state = stateMapping[k]
-            q = self.basinPos[state]
-            if PBCdistance(q.iniPos[0],q.iniPos[1],q.iniPos[2],self.currentPos[0],self.currentPos[1],self.currentPos[2]) < basinDistTol:
-                startDV = k
-                break
-
         occupVect0 = np.zeros(stateNum)
-        try:
-            occupVect0[startDV] = 1.0
-        except IndexError:
-            print "Warning! StartDV %d not found" %(startDV)
-            print "Length of stateMapping: ", len(stateMapping)
-            print "Current pos: ", self.currentPos
-            self.basinReport("BadStartDV")
-            for k in stateMapping:
-                print self.basinPos[k].iniPos
-            sys.exit()
-            occupVect0[0] = 1.0
+
+        occupVect0[0] = 1.0
 
         matrix2bInv = np.matrix(np.identity(stateNum)) - transMatrix
         try:
@@ -419,33 +410,42 @@ class basin(object):
     def addChangedEvents(self,atomNum):
         event_list = []
         result = self.meanRate()
+        keepBasin = True
 
-        if len(result):
-            k=0
-            for i in range(len(self.basinPos)):
-                if self.basinPos[i].explored:
-                    for j in range(len(self.basinPos[i].transitionList)):
-                        trans = self.basinPos[i].transitionList[j]
-                        newRate = result[k]
-                        event = [newRate,atomNum,trans.finPos,trans.barrier]
-                        event_list.append(event)
-                        k += 1
-                # else:
-                #     for j in range(len(self.basinPos[i].transitionList)):
-                #         trans = self.basinPos[i].transitionList[j]
-                #         event = [trans.rate,atomNum,trans.finPos,trans.barrier]
-                #         event_list.append(event)
-            if len(result) > k:
-                print "WARNING, not all mean rates are assigned!", len(result), k
+        if result is not None:
+            if len(result):
+                k=0
+                for i in range(len(self.basinPos)):
+                    if self.basinPos[i].explored:
+                        for j in range(len(self.basinPos[i].transitionList)):
+                            trans = self.basinPos[i].transitionList[j]
+                            newRate = result[k]
+                            event = [newRate,atomNum,trans.finPos,trans.barrier]
+                            event_list.append(event)
+                            k += 1
+                    # else:
+                    #     for j in range(len(self.basinPos[i].transitionList)):
+                    #         trans = self.basinPos[i].transitionList[j]
+                    #         event = [trans.rate,atomNum,trans.finPos,trans.barrier]
+                    #         event_list.append(event)
+                if len(result) > k:
+                    print "WARNING, not all mean rates are assigned!", len(result), k
+            else:
+                for i in range(len(self.basinPos)):
+                    if self.basinPos[i].explored:
+                        for j in range(len(self.basinPos[i].transitionList)):
+                            trans = self.basinPos[i].transitionList[j]
+                            event = [trans.rate,atomNum,trans.finPos,trans.barrier]
+                            event_list.append(event)
         else:
+            keepBasin = False
             for i in range(len(self.basinPos)):
                 if self.basinPos[i].explored:
                     for j in range(len(self.basinPos[i].transitionList)):
                         trans = self.basinPos[i].transitionList[j]
                         event = [trans.rate,atomNum,trans.finPos,trans.barrier]
                         event_list.append(event)
-
-        return event_list
+        return event_list, keepBasin
 
     # optional report output for debugging
     def basinReport(self,index):
@@ -1254,12 +1254,17 @@ def createEventsList(full_depo_index,surface_lattice, volumes):
                 event_list = event_list + events
                 basinList.pop(whichB)
             else:
-                bas.buildConnectivity()
-                events = bas.addChangedEvents(j)
-                event_list = event_list + events
+                basinGood = bas.buildConnectivity()
+                if basinGood:
+                    events, keepBasin = bas.addChangedEvents(j)
+                    event_list = event_list + events
 
-                # remove small basins
-                if len(bas.basinPos) < 2:
+                    # remove small basins
+                    if len(bas.basinPos) < 2 or not keepBasin:
+                        basinList.pop(whichB)
+                else:
+                    events = bas.addUnchangedEvents(j)
+                    event_list = event_list + events
                     basinList.pop(whichB)
 
     del initialMinimised
