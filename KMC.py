@@ -507,6 +507,7 @@ def readLattice(lattice,m):
                 break
             latticeLines.append([str(line[0]),float(line[1]),float(line[2]),float(line[3]),float(line[4])])
             #latticeLines.append(line)
+        input_file.close()
         return latticeLines
     else:
         print "Cannot read lattice"
@@ -1131,7 +1132,7 @@ def findFinal(dir_vector,atom_index,full_depo_index,surface_positions):
         return None, None
 
 # create the list of possible events
-def createEventsList(full_depo_index,surface_lattice, volumes):
+def createEventsList(full_depo_index,surface_lattice, volumes, fullyCoordList, failedCount=0):
 
     event_list = []
     adatom_positions = []
@@ -1220,6 +1221,22 @@ def createEventsList(full_depo_index,surface_lattice, volumes):
                             event_list.append([trans.rate,j,final_pos,trans.barrier,trans.reverseBarrier])
                     except KeyError:
                         result, vol = singleNEB(direc,full_depo_index,surface_lattice,j,vol_key,final_key,natoms,vol,initialMinimised)
+                        if result == 1:
+                            if failedCount == 0:
+                                # attempt to reset to lattice
+                                print "Attempting to reset to lattice positions post minimisation. Restarting create events list."
+                                new_full_depo = readLattice(NEB_dir_name_prefac+"/Reset.dat",len(surface_lattice)+2)
+                                print new_full_depo[0]
+                                newfulldepo = setToLattice(new_full_depo)
+                                full_depo_index = []
+                                for q in range(len(newfulldepo)):
+                                    nfp = newfulldepo[q]
+                                    full_depo_index.append([nfp[0],nfp[1],nfp[2],nfp[3],len(surface_lattice)+q])
+                                print full_depo_index[0]
+                                event_list, volumes, fullyCoordList, full_depo_index = createEventsList(full_depo_index, surface_lattice, volumes, fullyCoordList, failedCount=1)
+                                break
+                            else:
+                                sys.exit()
                         if result:
                             if result[2] != "None":
                                 rate = calcRate(float(result[2]))
@@ -1239,7 +1256,19 @@ def createEventsList(full_depo_index,surface_lattice, volumes):
             else:
                 status, result, vol, _, initialMinimised = autoNEB(full_depo_index,surface_lattice,j,vol_key,natoms,vol,None)
             if status:
-                pass
+                if failedCount == 0:
+                    # attempt to reset to lattice
+                    print "Attempting to reset to lattice positions post minimisation. Restarting create events list."
+                    newfulldepo = setToLattice(new_full_depo)
+                    full_depo_index = []
+                    for q in range(len(newfulldepo)):
+                        nfp = newfulldepo[q]
+                        full_depo_index.append([nfp[0],nfp[1],nfp[2],nfp[3],len(surface_lattice)+q])
+                    print full_depo_index[0]
+                    event_list, volumes, fullyCoordList, full_depo_index = createEventsList(full_depo_index, surface_lattice, volumes, fullyCoordList, failedCount=1)
+                    break
+                else:
+                    sys.exit()
             else:
                 event_list = event_list + result
                 volumes[vol_key] = vol
@@ -1271,7 +1300,7 @@ def createEventsList(full_depo_index,surface_lattice, volumes):
     del lattice_positions
     del adatom_positions
 
-    return event_list, volumes, fullyCoordList
+    return event_list, volumes, fullyCoordList, full_depo_index
 
 # run NEB to find barriers that are not known
 def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
@@ -1451,7 +1480,11 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
             return 0, results, vol, keepBasin, iniMin
     else:
         print "WARNING: maxMove too large in initial lattice: ", maxMove
-        sys.exit()
+        del ini, iniMin
+        #del fin, finMin
+        del Sep
+        iniMin.writeLattice(NEB_dir_name_prefac+"/Reset.dat")
+        return 2, results, vol, keepBasin, False;
 
     del ini, iniMin
     #del fin, finMin
@@ -1479,9 +1512,9 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
         minimiser = Minimise.getMinimiser(params)
         status = minimiser.run(iniMin)
         if status:
-            print "CRITICAL ERROR!!!"
             print " WARNING! failed to minimise initial lattice"
-            sys.exit()
+            iniMin.writeLattice(NEB_dir_name_prefac+"/Reset.dat")
+            return 1, vol
     else:
         iniMin = initialMinimised
         ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
@@ -1603,9 +1636,10 @@ def singleNEB(direction,full_depo_index,surface_lattice,atom_index,hashkey,final
         # if results:
         #     add_to_trans_file(hashkey,results)
     else:
-        print "CRITICAL ERROR!"
         print "WARNING: maxMove too large in initial lattice ", maxMove
-        sys.exit()
+        print " WARNING! failed to minimise initial lattice"
+        iniMin.writeLattice(NEB_dir_name_prefac+"/Reset.dat")
+        return 1, vol
 
     del ini, iniMin
     del Sep
@@ -1864,13 +1898,12 @@ index = CurrentStep
 # ================== do KMC run ==============================================
 # ============================================================================
 
-
 while CurrentStep < (total_steps + 1):
     # TODO: include a verbosity level
     print "Current Step: ", CurrentStep
 
     # check if in same position as 2 steps ago
-    event_list, volumes, fullyCoordList = createEventsList(full_depo_list,surface_lattice, volumes)
+    event_list, volumes, fullyCoordList, full_depo_list = createEventsList(full_depo_list,surface_lattice, volumes,  fullyCoordList)
 
 
     # write out volumes file
@@ -1942,7 +1975,7 @@ while CurrentStep < (total_steps + 1):
                     else:
                         full_depo2 = setToLattice(full_depo_list)
                         writeLatticeLKMC('/reset',full_depo2,surface_lattice,natoms)
-                        full_depo_list = full_depo_backup
+                        full_depo_list = full_depo2
                         # sys.exit()
         CurrentStep += 1
 
