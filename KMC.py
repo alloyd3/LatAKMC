@@ -1259,6 +1259,7 @@ def createEventsList(full_depo_index,surface_lattice, volumes, fullyCoordList, f
                 if failedCount == 0:
                     # attempt to reset to lattice
                     print "Attempting to reset to lattice positions post minimisation. Restarting create events list."
+                    new_full_depo = readLattice(NEB_dir_name_prefac+"/Reset.dat",len(surface_lattice)+2)
                     newfulldepo = setToLattice(new_full_depo)
                     full_depo_index = []
                     for q in range(len(newfulldepo)):
@@ -1317,6 +1318,7 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
     ini = Lattice.readLattice(NEB_dir_name_prefac+"/initial.dat")
     iniMin = copy.deepcopy(ini)
     iniMin.calcForce(correctTE=1)
+    iniMin.writeLattice(NEB_dir_name_prefac+"/Reset.dat")
     # print "ini energy:", iniMin.totalEnergy
 
     # create cell dimensions
@@ -1483,7 +1485,6 @@ def autoNEB(full_depo_index,surface_lattice,atom_index,hashkey,natoms,vol,bas):
         del ini, iniMin
         #del fin, finMin
         del Sep
-        iniMin.writeLattice(NEB_dir_name_prefac+"/Reset.dat")
         return 2, results, vol, keepBasin, False;
 
     del ini, iniMin
