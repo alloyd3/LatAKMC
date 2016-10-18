@@ -31,7 +31,7 @@ prefactor = 1.00E+13        # fixed prefactor for Arrhenius eq. (typically 1E+12
 boltzmann = 8.62E-05        # Boltzmann constant (8.62E-05)
 graphRad = 5.9                # graph radius of defect volumes (Angstroms)
 depoRate = 5184              # deposition rate
-maxMoveCriteria = 0.8        # maximum distance an atom can move after relaxation (pre NEB)
+maxMoveCriteria = 0.87        # maximum distance an atom can move after relaxation (pre NEB)
 MaxHeight = 30              # Dimension of cell in y direction (A)
 IncludeUpTrans = 0          # Booleon: Include transitions up step edges (turning off speeds up simulation)
 IncludeDownTrans = 1        # Booleon: Include transitions down step edges
@@ -282,7 +282,12 @@ class basin(object):
         if len(self.connectivity) > 1:
             print "Connectivity matrix for atom %d:" % self.atomNum
             for i in range(N):
-                print self.connectivity[i]
+                text = '['
+                for j in range(N):
+                    text += str(len(self.connectivity[i][j])) + ' '
+                text += ']'
+                print text
+                # print self.connectivity[i]
 
         return True
         # print "Current DV explored: ", self.basinPos[cDV].explored
@@ -1282,7 +1287,10 @@ def createEventsList(full_depo_index,surface_lattice, volumes, fullyCoordList, f
             if not keepBasin:
                 events = bas.addUnchangedEvents(j)
                 event_list = event_list + events
-                basinList.pop(whichB)
+                try:
+                    basinList.pop(whichB)
+                except:
+                    pass
             else:
                 basinGood = bas.buildConnectivity()
                 if basinGood:
