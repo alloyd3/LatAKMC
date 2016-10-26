@@ -1,0 +1,95 @@
+!---Input----------------------------------------------------------
+! jobStatus: 'BEGIN' or 'CNTIN'
+! atom_species: element to deposit
+! numberDepos: Number of depositions to do initially
+! totalSteps: total number of steps to run
+! temperature: temperature to use for rate calculations (K)
+! depoRate: rate of deposition events (atoms per second)
+! -----------------------------------------------------------------
+%jobStatus
+BEGIN
+%atom_species
+Ag
+%numberDepos
+10
+%total_steps
+100
+%temperature
+300
+%depoRate
+5184
+!---Output---------------------------------------------------------
+! latticeOutEvery: store lattice every n number of steps
+! volumesOutEvery: store transitions every n number of steps
+! statsOut: output statistics into a file (0 or 1)
+! -----------------------------------------------------------------
+%latticeOutEvery
+10
+%volumesOutEvery
+20
+%statsOut
+0
+!---Constants------------------------------------------------------
+! prefactor: value of fixed prefactor used in Arrhenius eq. (1E+13 or 1E+12)
+! boltzmann: the boltzmann constant (8.62E-05)
+! -----------------------------------------------------------------
+%prefactor
+1.00E+13
+%boltzmann
+8.62E-05
+!---Distances------------------------------------------------------
+! graphRad: radius of to use for graph calculations
+! maxMoveCriteria: max move of a single atom via minimisation allowed
+! maxHeight: maximum height of lattice
+! bondDist: universal bond distance (> 1NN)
+! x_grid_dist: distance between lattice points in x direction
+! y_grid_dist: distance between lattice points in y direction
+! y_grid_dist2: distance in y direction after first layer of growth
+! z_grid_dist: distance between lattice points in z direction
+! -----------------------------------------------------------------
+%graphRad
+5.9
+%maxMoveCriteria
+0.87
+%maxHeight
+30
+%bondDist
+3.4
+%x_grid_dist
+0.9497411251
+%y_grid_dist
+1.55
+%y_grid_dist2
+2.1
+%z_grid_dist
+1.6449999809
+!---Transitions----------------------------------------------------
+! includeUpTrans: include transition moving up a step edge
+! includeDownTrans: include transitions moving down a step edge
+! maxCoordNum: only search for transitions on atoms with coordination number < maxCoordNum
+! checkMoveDist: do not allow atoms to move within this distance of another atom (basin only)
+! reverseBarrierTol: ignore transitions with reverse barrier less than this
+! -----------------------------------------------------------------
+%includeUpTrans
+0
+%includeDownTrans
+1
+%maxCoordNum
+9
+%checkMoveDist
+2
+%reverseBarrierTol
+0.03
+!---Basin----------------------------------------------------------
+! useBasin: use the basin method
+! basinBarrierTol: transitions with barriers < tol are included in the basin
+! basinBarrierSubTol: if one barriers above this, it is considered an escaping transition
+! -----------------------------------------------------------------
+%useBasin
+1
+%basinBarrierTol
+0.25
+%basinBarrierSubTol
+0.40
+%basinDistTol
+0.6
