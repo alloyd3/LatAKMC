@@ -19,41 +19,6 @@ import numpy as np
 from LKMC import Graphs, NEB, Lattice, Minimise, Input, Vectors
 import Parameters
 
-#------------------------------------------------------------------------------
-#- User inputs hard coded in script
-# params.jobStatus = 'CNTIN'            # BEGIN or CNTIN run
-# params.atom_species = 'Ag'         # species to deposit
-# params.numberDepos = 35  	        # number of initial depositions
-# params.total_steps = 100000           # total number of steps to run
-# params.latticeOutEvery = 10         # write output lattice every n steps
-# params.volumesOutEvery = 20        # write out volumes to file every n steps
-# params.temperature = 300           # system params.temperature in Kelvin
-# params.prefactor = 1.00E+13        # fixed params.prefactor for Arrhenius eq. (typically 1E+12 or 1E+13)
-# params.boltzmann = 8.62E-05        # params.boltzmann constant (8.62E-05)
-# params.graphRad = 5.9                # graph radius of defect volumes (Angstroms)
-# params.depoRate  = 5184              # deposition rate
-# params.maxMoveCriteria = 0.87        # maximum distance an atom can move after relaxation (pre NEB)
-# params.maxHeight = 30              # Dimension of cell in y direction (A)
-# params.includeUpTrans = 0          # Booleon: Include transitions up step edges (turning off speeds up simulation)
-# params.includeDownTrans = 1        # Booleon: Include transitions down step edges
-# params.statsOut = False               # Recieve extra information from your run
-# params.useBasin = True            # Booleon: use the basin method or not
-# params.basinBarrierTol = 0.25      # barriers below this are considered in a basin (eV)
-# params.basinBarrierSubTol = 0.40   # if one barrier is above this, it is considered an escaping transition not internal
-# params.basinDistTol = 0.6         # distance between states to be considered the same state (A)
-# params.checkMoveDist = 2          # distance used in checkMoveDist. Do not allow an atom to move within this distance of another atom. Needed for basin method
-# params.reverseBarrierTol = 0.03   # Tolerance to allow transitions with reverse barriers greater than this only.
-# params.maxCoordNum = 9            # max coordination to be considered a Defects
-# params.bondDist = 3.4             # bond distance between atoms
-
-
-# for (0001) ZnO only
-# params.x_grid_dist = 0.9497411251   # distance in x direction between each atom in lattice (A)
-# params.y_grid_dist = 1.55            # distance in y direction between surface and first layer (eg O layer - Ag layer)
-# params.y_grid_dist2 = 2.1             # distance between deposited layers (eg. Ag layer - Ag layer)
-# params.z_grid_dist = 1.6449999809   # distance in z direction between each atom in lattice
-#------------------------------------------------------------------------------
-
 # Defined some useful functions
 
 # classes used in hashkey calculation from LKMC
