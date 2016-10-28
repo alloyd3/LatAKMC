@@ -14,6 +14,8 @@ Grid positions start at (0,0,0) <br>
 
 ### Setup:
 KMC.py            - main source code (python)<br>
+Parameters.py     - module for reading input parameters
+input.IN          - input parameters file
 lattice.dat      - initial lattice file<br>
 Volumes.txt           - File containing transitions for each volume<br>
 Output            - directory containing lattices after KMC steps<br>
