@@ -238,6 +238,7 @@ class basin(object):
                         self.basinReport("Faulty")
                         sys.exit()
 
+        # check symmetry of matrix
         for i in range(len(self.connectivity)):
             for j in range(len(self.connectivity)):
                 if j != i:
@@ -245,6 +246,7 @@ class basin(object):
                         print "Warning! Basin is non-symmetric"
                         return False
 
+        # print connectivty matrix
         if len(self.connectivity) > 1:
             print "Connectivity matrix for atom %d:" % self.atomNum
             for i in range(N):
@@ -292,6 +294,8 @@ class basin(object):
         barriers = []
         stateNum = 0
         stateMapping = []
+
+        # find all fully explored basin states
         for i in range(len(self.basinPos)):
             if self.basinPos[i].explored:
                 stateNum +=1
@@ -303,6 +307,8 @@ class basin(object):
         transMatrix = np.zeros([stateNum, stateNum])
         tao1 = np.zeros(stateNum, np.float64)
         transNum = np.zeros(stateNum,dtype=np.int)
+
+        # find tao for each state
         for j in range(stateNum):
             transNum[j] = len(self.basinPos[stateMapping[j]].transitionList)
             sum = 0.0
@@ -314,17 +320,20 @@ class basin(object):
                 return result
             tao1[j] = 1 / sum
 
+        # find all trans matrix entries
         for i in range(stateNum):
             for j in range(stateNum):
                 for k in self.connectivity[stateMapping[i]][stateMapping[j]]:
                     transMatrix[j][i] += tao1[i] * self.basinPos[stateMapping[i]].transitionList[k].rate
 
-
         occupVect0 = np.zeros(stateNum)
 
+        # set original entry point of basin as initial state
         occupVect0[0] = 1.0
 
         matrix2bInv = np.matrix(np.identity(stateNum)) - transMatrix
+
+        # invert matrix
         try:
             occupVect = np.linalg.inv(matrix2bInv)
         except np.linalg.LinAlgError:
@@ -341,6 +350,7 @@ class basin(object):
 
 
         negRate = False
+        # find new rates
         for i in range(stateNum):
             for j in range(transNum[i]):
                 finalDV = self.basinPos[stateMapping[i]].transitionList[j].finRef
@@ -676,14 +686,17 @@ def PBCpos(x,box_x):
 
 # find distance between 2 points inlcuding PBC
 def PBCdistance(x1,y1,z1,x2,y2,z2):
+
     pos1 = np.empty(3, np.float64)
     pos1[0] = x1
     pos1[1] = y1
     pos1[2] = z1
+
     pos2 = np.empty(3, np.float64)
     pos2[0] = x2
     pos2[1] = y2
     pos2[2] = z2
+
     cellDims = np.asarray([box_x,0,0,0,params.maxHeight,0,0,0,box_z],dtype=np.float64)
     sepVec = Vectors.separationVector(pos1,pos2,cellDims)
     mag = Vectors.magnitude(sepVec)
@@ -1742,6 +1755,7 @@ fullyCoordList = []
 
 print "="*80
 print "~~~~~~~~ Starting lattice KMC ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+print "~~~~~~~~ Copyright (c) Adam Lloyd 2016 ~~~~~~~~~~~~~~~~~~~~~~~"
 print "="*80
 
 
@@ -1938,7 +1952,7 @@ while CurrentStep < (params.total_steps + 1):
                 minimiser = Minimise.getMinimiser(LKMCParams)
                 status = minimiser.run(iniMin)
                 if status:
-                    print " Warning: failed to minimise initial lattice"
+                    print "Warning: failed to minimise initial lattice"
                     full_depo_list = full_depo_backup
                     sys.exit()
                 else:
